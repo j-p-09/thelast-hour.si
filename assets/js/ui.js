@@ -124,29 +124,35 @@ export function confirmBox(title, text, okLabel = 'Potrdi', danger = false) {
   return new Promise((res) => modal({ title, body: h('p', null, text), actions: [{ label: 'Prekliči', value: false }, { label: okLabel, kind: danger ? 'danger' : 'primary', value: true }], onClose: (v) => res(v === true) }));
 }
 
-// ---------- zvok (sintetiziran, brez datotek) ----------
-let actx = null;
-export const sound = {
-  get on() { try { return localStorage.getItem('tlh.sound') !== 'off'; } catch (_) { return true; } },
-  set(on) { try { localStorage.setItem('tlh.sound', on ? 'on' : 'off'); } catch (_) { /* brez shranjevanja */ } },
-  beep(freq = 660, dur = 0.12, type = 'sine', vol = 0.05, delay = 0) {
-    if (!this.on) return;
-    try {
-      actx = actx || new (window.AudioContext || window.webkitAudioContext)();
-      if (actx.state === 'suspended') actx.resume();
-      const o = actx.createOscillator(), g = actx.createGain(), t = actx.currentTime + delay;
-      o.type = type; o.frequency.value = freq; g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-      o.connect(g).connect(actx.destination); o.start(t); o.stop(t + dur + 0.02);
-    } catch (_) { /* zvok ni na voljo */ }
-  },
-  find() { this.beep(740, 0.1, 'triangle'); this.beep(990, 0.16, 'triangle', 0.05, 0.1); },
-  ok() { this.beep(523, 0.1, 'sine'); this.beep(784, 0.2, 'sine', 0.05, 0.1); },
-  bad() { this.beep(160, 0.25, 'sawtooth', 0.04); },
-  warn() { this.beep(440, 0.15, 'square', 0.03); this.beep(440, 0.15, 'square', 0.03, 0.25); },
-  tick() { this.beep(900, 0.05, 'square', 0.025); },
-  win() { [523, 659, 784, 1047].forEach((f, i) => this.beep(f, 0.3, 'triangle', 0.05, i * 0.14)); },
-  lose() { [330, 262, 196].forEach((f, i) => this.beep(f, 0.4, 'sawtooth', 0.035, i * 0.22)); },
-};
+// ---------- zvok (sintetiziran, brez datotek; glej audio.js) ----------
+import { sound } from './audio.js';
+export { sound };
+
+// Okno z nastavitvami zvoka: glavno stikalo + glasba, zvočni učinki, obvestila (vklop/izklop in glasnost).
+export function soundSettings(onChange) {
+  const rows = [['music', 'Glasba', 'Ozadna glasba (mračni ambient); proti koncu časa se pospeši utrip.'], ['sfx', 'Zvočni učinki', 'Pravilni/napačni odgovori, najdeni dokazi, zmaga in poraz, odštevanje zadnjih 10 sekund.'], ['notif', 'Obvestila', 'Opozorila o času, sporočila ekipe, nov član v sobi, rešitve soigralcev.']];
+  const master = h('input', { type: 'checkbox', id: 'snd-master', checked: sound.settings().master });
+  const ctl = {};
+  const refresh = () => { const st = sound.settings(); for (const [k] of rows) { ctl[k].cb.disabled = !st.master; ctl[k].vol.disabled = !st.master || !st[k].on; ctl[k].row.classList.toggle('is-off', !st.master); } if (onChange) onChange(); };
+  master.addEventListener('change', () => { sound.update({ master: master.checked }); refresh(); });
+  const list = rows.map(([k, label, desc]) => {
+    const st = sound.settings()[k];
+    const cb = h('input', { type: 'checkbox', id: `snd-${k}`, checked: st.on });
+    const vol = h('input', { type: 'range', min: 0, max: 100, step: 1, id: `snd-${k}-vol`, 'aria-label': `Glasnost: ${label}`, value: Math.round(st.vol * 100) });
+    const out = h('output', { for: `snd-${k}-vol`, class: 'snd-out' }, `${Math.round(st.vol * 100)} %`);
+    cb.addEventListener('change', () => { sound.update({ [k]: { on: cb.checked } }); refresh(); if (cb.checked) sound.preview(k); });
+    vol.addEventListener('input', () => { out.textContent = `${vol.value} %`; sound.update({ [k]: { vol: Number(vol.value) / 100 } }); });
+    vol.addEventListener('change', () => { if (k !== 'music') sound.preview(k); });
+    const row = h('div', { class: 'snd-row' }, h('label', { class: 'snd-check', for: `snd-${k}` }, cb, h('span', null, h('b', null, label), h('small', { class: 'muted' }, desc))), h('div', { class: 'snd-vol' }, vol, out),
+      h('button', { class: 'btn small', type: 'button', onclick: () => sound.preview(k) }, 'Preizkusi'));
+    ctl[k] = { cb, vol, row };
+    return row;
+  });
+  const body = h('div', { class: 'snd' }, h('label', { class: 'snd-check snd-master', for: 'snd-master' }, master, h('span', null, h('b', null, 'Zvok in glasba (vse)'), h('small', { class: 'muted' }, 'Glavno stikalo: izklopi vse spodaj naštete zvoke naenkrat.'))), list,
+    h('p', { class: 'hint' }, 'Nastavitve se shranijo v tem brskalniku. Brskalnik dovoli zvok šele po prvem kliku na strani.'));
+  refresh();
+  modal({ title: 'Zvok in glasba', body, actions: [{ label: 'Zapri', kind: 'primary' }] });
+}
 
 export function copyText(t) { return navigator.clipboard ? navigator.clipboard.writeText(t) : Promise.reject(new Error('ni odložišča')); }
 export function download(filename, blob) { const a = h('a', { href: URL.createObjectURL(blob), download: filename }); document.body.append(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000); }

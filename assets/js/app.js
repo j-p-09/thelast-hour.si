@@ -1,6 +1,6 @@
 // Glavna aplikacija igralca: zagon, stanje prijave, usmerjevalnik.
 import { initFirebase, state as fb, onAuth, watch, signOutUser } from './backend.js';
-import { h, clear, icon, logo, sound, toast, spinner } from './ui.js';
+import { h, clear, icon, logo, sound, soundSettings, toast, spinner } from './ui.js';
 import { screens } from './screens-public.js';
 import { playerScreens } from './screens-player.js';
 import { roomScreen } from './investigation.js';
@@ -29,7 +29,7 @@ function shell(content, { bare = false, wide = false } = {}) {
         h('nav', { 'aria-label': 'Glavna navigacija' },
           approved ? [h('a', { class: 'btn ghost small', href: '#/nadzorna-plosca' }, 'Nadzorna plošča'), h('a', { class: 'btn ghost small', href: '#/profil' }, 'Profil')] : null,
           S.activeId && approved ? h('a', { class: 'btn small primary', href: `#/ppot` , onclick: (e) => { e.preventDefault(); resumeActive(); } }, 'Nadaljuj preiskavo') : null,
-          h('button', { class: 'iconbtn', 'aria-label': sound.on ? 'Izklopi zvok' : 'Vklopi zvok', 'aria-pressed': String(!sound.on), onclick: (e) => { sound.set(!sound.on); e.currentTarget.replaceChildren(icon(sound.on ? 'sound' : 'mute')); e.currentTarget.setAttribute('aria-label', sound.on ? 'Izklopi zvok' : 'Vklopi zvok'); } }, icon(sound.on ? 'sound' : 'mute')),
+          h('button', { class: 'iconbtn', 'aria-label': 'Nastavitve zvoka in glasbe', title: 'Zvok in glasba', onclick: (e) => { const b = e.currentTarget; soundSettings(() => b.replaceChildren(icon(sound.on ? 'sound' : 'mute'))); } }, icon(sound.on ? 'sound' : 'mute')),
           loggedIn ? [h('span', { class: 'muted', style: 'font-size:13px' }, S.profile ? S.profile.username : ''), h('button', { class: 'btn ghost small', onclick: async () => { await signOutUser(); } }, 'Odjava')] : h('a', { class: 'btn small', href: '#/prijava' }, 'Vstop v sistem')))
     );
   }
@@ -97,7 +97,7 @@ function startAuthWatching() {
       const prev = S.profile && S.profile.status;
       S.profile = p; S.profileLoaded = true;
       if (prev && p && prev !== p.status) {
-        if (p.status === 'APPROVED') { toast('Vaša detektivska identiteta je odobrena. Dobrodošli!', 'ok'); sound.ok(); }
+        if (p.status === 'APPROVED') { toast('Vaša detektivska identiteta je odobrena. Dobrodošli!', 'ok'); sound.ping(); }
         if (p.status === 'SUSPENDED') toast('Vaš račun je bil suspendiran.', 'err');
       }
       if (first || (prev !== (p && p.status))) route();

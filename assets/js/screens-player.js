@@ -156,7 +156,7 @@ async function lobby(id) {
         h('div', { class: 'row', style: 'margin-top:20px' }, isHost ? startBtn : h('span', { class: 'muted' }, 'Čakamo, da gostitelj začne preiskavo …'), h('span', { class: 'spacer' }), leaveBtn)));
   }
   const unsubs = [
-    watch(`investigations/${id}/core`, (v) => { if (!v) return go('#/nadzorna-plosca'); core = v; draw(); }, () => go('#/nadzorna-plosca')),
+    watch(`investigations/${id}/core`, (v) => { if (!v) return go('#/nadzorna-plosca'); const n = Object.keys(v.members || {}).length; if (core && n > Object.keys(core.members || {}).length) sound.ping(); core = v; draw(); }, () => go('#/nadzorna-plosca')),
     watch(`presence/${id}`, (v) => { presence = v || {}; draw(); }),
   ];
   return () => { unsubs.forEach((u) => u()); stopPresence(id, S.user.uid, pres); };

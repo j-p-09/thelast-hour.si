@@ -1,7 +1,7 @@
 // Preiskovalna soba: časovnik, tabla, dokumenti, osumljenci, uganke, časovnica, dnevnik, končna obtožba, klepet.
 // Vse pomembne odločitve (preverjanje odgovorov, rok, rezultat) sprejme strežnik; to je samo prikaz in pošiljanje zahtevkov.
 import { shell, go, S, loadCase } from './app.js';
-import { h, clear, icon, logo, busyButton, toast, modal, confirmBox, sound, spinner, fmtClock, fmtTime, plural, $, $$ } from './ui.js';
+import { h, clear, icon, logo, busyButton, toast, modal, confirmBox, sound, soundSettings, spinner, fmtClock, fmtTime, plural, $, $$ } from './ui.js';
 import { call, watch, serverNow, startPresence, stopPresence } from './backend.js';
 import { portrait, floorPlan } from './art.js';
 import { renderBlocks } from './documents.js';
@@ -32,7 +32,7 @@ export async function roomScreen(id) {
   const panelHost = h('section', { class: 'room__panel', id: 'panel', 'aria-live': 'off' });
   const chatEl = h('aside', { class: 'chat', 'aria-label': 'Klepet ekipe', hidden: true });
   const chatBtn = h('button', { class: 'iconbtn', 'aria-label': 'Klepet ekipe', onclick: () => toggleChat() }, icon('chat'));
-  const soundBtn = h('button', { class: 'iconbtn', 'aria-pressed': String(!sound.on), 'aria-label': sound.on ? 'Izklopi zvok' : 'Vklopi zvok', onclick: (e) => { sound.set(!sound.on); e.currentTarget.replaceChildren(icon(sound.on ? 'sound' : 'mute')); e.currentTarget.setAttribute('aria-pressed', String(!sound.on)); } }, icon(sound.on ? 'sound' : 'mute'));
+  const soundBtn = h('button', { class: 'iconbtn', 'aria-label': 'Nastavitve zvoka in glasbe', title: 'Zvok in glasba', onclick: (e) => { const b = e.currentTarget; soundSettings(() => b.replaceChildren(icon(sound.on ? 'sound' : 'mute'))); } }, icon(sound.on ? 'sound' : 'mute'));
   const leaveBtn = h('button', { class: 'btn ghost small', onclick: async () => {
     if (!(await confirmBox('Zapusti preiskavo?', 'Preiskava teče naprej in odštevanje se ne ustavi. Pridružite se lahko znova s kodo za povabilo.', 'Zapusti', true))) return;
     try { await call('leaveInvestigation', { id }); } catch (_) { /* nič */ }
@@ -99,6 +99,7 @@ export async function roomScreen(id) {
       }
     }
     R.warnedInit = true;
+    sound.setTension(s > 0 && s < 600 ? 1 - s / 600 : 0);
     if (s <= 10 && s > 0 && Math.floor(s) !== R.lastTick) { R.lastTick = Math.floor(s); sound.tick(); }
     if (s <= 0 && R.core.status === 'active' && !R.timeoutCalled) {
       R.timeoutCalled = true;
@@ -117,6 +118,7 @@ export async function roomScreen(id) {
   }
   async function openDoc(eid) {
     R.selDoc = eid;
+    sound.doc();
     if (isNew(eid)) { try { await call('openDocument', { id, evidenceId: eid }); } catch (e) { toast(e.message, 'err'); } }
   }
   function panelDocs() {
@@ -380,9 +382,9 @@ export async function roomScreen(id) {
       R.seenEvents.add(k);
       const e = R.events[k];
       if (e.type === 'evidence') { sound.find(); toast(e.text, 'find', 6000); }
-      else if (e.type === 'puzzle' && e.uid !== S.user.uid) { sound.ok(); toast(e.text, 'ok'); }
-      else if (e.type === 'hint' && e.uid !== S.user.uid) toast(e.text, 'warn');
-      else if ((e.type === 'join' || e.type === 'leave') && e.uid !== S.user.uid) toast(e.text, 'info');
+      else if (e.type === 'puzzle' && e.uid !== S.user.uid) { sound.ping(); toast(e.text, 'ok'); }
+      else if (e.type === 'hint' && e.uid !== S.user.uid) { sound.ping(); toast(e.text, 'warn'); }
+      else if ((e.type === 'join' || e.type === 'leave') && e.uid !== S.user.uid) { sound.ping(); toast(e.text, 'info'); }
       else if (e.type === 'accusation' && e.uid !== S.user.uid) toast(e.text, 'warn');
       else if (e.type === 'finding' && !R.suppressFinding) { sound.find(); toast(e.text, 'find', 8000); }
     }
@@ -399,10 +401,10 @@ export async function roomScreen(id) {
     watch(`investigations/${id}/progress`, upd('progress', (v) => { R.progress = v; })),
     watch(`investigations/${id}/content`, upd('content', (v) => { R.content = v; })),
     watch(`investigations/${id}/board`, upd('board', (v) => { R.board = v; for (const k of Object.keys(R.localPos)) if (!R.dragging) delete R.localPos[k]; })),
-    watch(`investigations/${id}/chat`, upd('chat', (v) => { R.chat = v; })),
+    watch(`investigations/${id}/chat`, upd('chat', (v) => { const last = Math.max(0, ...Object.values(v).map((m) => m.ts || 0)); if (R.chatSoundTs !== undefined && Object.values(v).some((m) => m.uid !== S.user.uid && m.ts > R.chatSoundTs)) sound.chat(); R.chatSoundTs = last; R.chat = v; })),
     watch(`investigations/${id}/events`, upd('events', (v) => { R.events = v; onEvents(); })),
     watch(`presence/${id}`, upd('presence', (v) => { R.presence = v; })),
   ];
   const pres = startPresence(id, S.user.uid);
-  return () => { subs.forEach((u) => u()); clearInterval(timerHandle); stopPresence(id, S.user.uid, pres); };
+  return () => { sound.setTension(0); subs.forEach((u) => u()); clearInterval(timerHandle); stopPresence(id, S.user.uid, pres); };
 }
