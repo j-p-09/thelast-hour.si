@@ -3,6 +3,7 @@
 import { shell, go, S, loadCase } from './app.js';
 import { h, clear, icon, logo, busyButton, toast, modal, confirmBox, sound, spinner, fmtClock, fmtTime, plural, $, $$ } from './ui.js';
 import { call, watch, serverNow, startPresence, stopPresence } from './backend.js';
+import { portrait, floorPlan } from './art.js';
 import { renderBlocks } from './documents.js';
 
 const TABS = [['tabla', 'Tabla', 'board'], ['dokumenti', 'Dokumenti', 'docs'], ['osumljenci', 'Osumljenci', 'people'], ['uganke', 'Uganke', 'puzzle'], ['casovnica', 'Časovnica', 'clock'], ['dnevnik', 'Dnevnik', 'log'], ['obtozba', 'Obtožba', 'gavel']];
@@ -141,7 +142,7 @@ export async function roomScreen(id) {
   function panelSuspects() {
     const sid = R.selSuspect;
     const grid = h('div', { class: 'grid c5 suspects' }, C.suspects.map((s) => h('button', { class: 'suspect' + (sid === s.id ? ' is-sel' : ''), onclick: () => { R.selSuspect = s.id; render(); } },
-      h('div', { class: 'avatar' }, s.name.split(' ').slice(-1)[0][0]), h('b', null, s.name), h('small', { class: 'muted' }, s.job), h('small', { class: 'muted' }, `${s.age} let`))));
+      portrait(s.id, 72, s.name), h('b', null, s.name), h('small', { class: 'muted' }, s.job), h('small', { class: 'muted' }, `${s.age} let`))));
     if (!sid) return h('div', null, h('p', { class: 'muted' }, 'Izberite osumljenca, da si ogledate profil in ga zaslišite.'), grid);
     const s = C.suspects.find((x) => x.id === sid);
     const qs = C.questions[sid] || [];
@@ -302,13 +303,13 @@ export async function roomScreen(id) {
     const add = busyButton(h('button', { class: 'btn primary small' }, icon('plus', 14), 'Dodaj v časovnico'), async () => {
       try { await call('boardAction', { id, action: 'addTimeline', time: R.drafts['tl-time'], text: R.drafts['tl-text'], evidenceId: R.drafts['tl-ev'] || null, suspectId: R.drafts['tl-su'] || null }); R.drafts['tl-text'] = ''; } catch (e) { toast(e.message, 'err'); }
     });
-    return h('div', { class: 'grid c2', style: 'align-items:start' },
+    return h('div', null, h('div', { class: 'card art-plan-card' }, floorPlan()), h('div', { class: 'grid c2', style: 'align-items:start;margin-top:16px' },
       h('div', { class: 'card' }, h('h3', null, 'Sestavljanje časovnice'), h('p', { class: 'muted' }, 'Vnesite čas v LOKALNEM času (HH:MM). Pazite: dnevnik dostopa ni nujno v lokalnem času.'),
         h('div', { class: 'field' }, h('label', { for: 'tlt' }, 'Ura'), input('tl-time', { id: 'tlt', placeholder: '23:15', maxlength: 5 })),
         h('div', { class: 'field' }, h('label', { for: 'tlx' }, 'Dogodek'), input('tl-text', { id: 'tlx', maxlength: 200, placeholder: 'npr. Pirc vstopi skozi stranski vhod' })),
         h('div', { class: 'grid c2' }, h('div', { class: 'field' }, h('label', { for: 'tle' }, 'Dokaz'), h('select', { id: 'tle', 'data-key': 'tl-ev', onchange: (e) => { R.drafts['tl-ev'] = e.target.value; } }, h('option', { value: '' }, '—'), evList().map((e) => h('option', { value: e.id, selected: draft('tl-ev') === e.id }, `${e.id}: ${e.title}`)))),
           h('div', { class: 'field' }, h('label', { for: 'tls' }, 'Osumljenec'), h('select', { id: 'tls', 'data-key': 'tl-su', onchange: (e) => { R.drafts['tl-su'] = e.target.value; } }, h('option', { value: '' }, '—'), C.suspects.map((s) => h('option', { value: s.id, selected: draft('tl-su') === s.id }, s.name))))), add),
-      h('div', { class: 'card' }, h('h3', null, `Skupna časovnica (${tl.length})`), tl.length ? h('ol', { class: 'tl' }, tl.map((t) => h('li', null, h('b', { class: 'mono' }, t.time), h('div', null, t.text, h('div', { class: 'muted', style: 'font-size:12px' }, [t.suspectId ? suspectName(t.suspectId) : null, t.evidenceId, `dodal ${t.name}`].filter(Boolean).join(' · '))), h('button', { class: 'iconbtn sm', 'aria-label': 'Izbriši vnos', onclick: () => call('boardAction', { id, action: 'deleteTimeline', entryId: t.k }).catch((e) => toast(e.message, 'err')) }, icon('x', 14))))) : h('p', { class: 'muted' }, 'Časovnica je prazna.')));
+      h('div', { class: 'card' }, h('h3', null, `Skupna časovnica (${tl.length})`), tl.length ? h('ol', { class: 'tl' }, tl.map((t) => h('li', null, h('b', { class: 'mono' }, t.time), h('div', null, t.text, h('div', { class: 'muted', style: 'font-size:12px' }, [t.suspectId ? suspectName(t.suspectId) : null, t.evidenceId, `dodal ${t.name}`].filter(Boolean).join(' · '))), h('button', { class: 'iconbtn sm', 'aria-label': 'Izbriši vnos', onclick: () => call('boardAction', { id, action: 'deleteTimeline', entryId: t.k }).catch((e) => toast(e.message, 'err')) }, icon('x', 14))))) : h('p', { class: 'muted' }, 'Časovnica je prazna.'))));
   }
 
   // ---------- dnevnik ----------

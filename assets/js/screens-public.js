@@ -2,6 +2,7 @@
 import { shell, go, S, loadCase } from './app.js';
 import { h, icon, logo, busyButton, STATUS_SL, fmtDate, toast, sound } from './ui.js';
 import { call, signIn, signOutUser, authErrorText } from './backend.js';
+import { archiveScene } from './art.js';
 import { usernameToEmail, normUsername } from './identity.js';
 
 function clockRing() {
@@ -18,7 +19,7 @@ function home() {
   try { if (!sessionStorage.getItem('tlh.intro')) { sessionStorage.setItem('tlh.intro', '1'); intro = true; } } catch (_) { intro = false; }
   const view = h('div', null,
     intro ? h('div', { class: 'intro', 'aria-hidden': 'true', onclick: (e) => e.currentTarget.remove() }, h('div', { class: 'intro__in' }, logo(true), h('h1', null, 'THE LAST HOUR'), h('p', null, '60 minut do resnice'))) : null,
-    h('section', { class: 'hero' }, clockRing(),
+    h('section', { class: 'hero' }, h('div', { class: 'hero__scene' }, archiveScene()), clockRing(),
       h('div', null, logo(true),
         h('h1', null, 'THE LAST HOUR'), h('div', { class: 'sub' }, '60 MINUT DO RESNICE'),
         h('p', { class: 'tag' }, '»En primer. Ena ura. Nobenega prostora za napake.«'),

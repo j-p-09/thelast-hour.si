@@ -2,7 +2,7 @@
 const SVGNS = 'http://www.w3.org/2000/svg';
 
 export function h(tag, attrs, ...kids) {
-  const svg = ['svg', 'path', 'circle', 'line', 'rect', 'g', 'text', 'polygon', 'defs', 'linearGradient', 'stop', 'use', 'polyline'].includes(tag);
+  const svg = ['svg', 'path', 'circle', 'line', 'rect', 'g', 'text', 'polygon', 'defs', 'linearGradient', 'radialGradient', 'stop', 'use', 'polyline', 'ellipse', 'clipPath', 'title', 'pattern'].includes(tag);
   const el = svg ? document.createElementNS(SVGNS, tag) : document.createElement(tag);
   for (const [k, v] of Object.entries(attrs || {})) {
     if (v === false || v == null) continue;

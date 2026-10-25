@@ -149,3 +149,18 @@ table.data tr:hover td { background: rgba(255, 255, 255, .02); }
 .view-enter { animation: fadeUp .35s ease both; }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .001s !important; animation-iteration-count: 1 !important; transition-duration: .001s !important; scroll-behavior: auto !important; } .intro { display: none; } }
 @media (max-width: 520px) { .idcard { grid-template-columns: 1fr; } .topbar { padding: 10px 12px; } .btn { padding: 12px 14px; } }
+
+/* ilustracije */
+.hero__scene { position: absolute; left: 0; right: 0; bottom: 0; height: 62%; opacity: .5; pointer-events: none; -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 45%); mask-image: linear-gradient(to bottom, transparent 0, #000 45%); }
+.hero__scene svg { width: 100%; height: 100%; display: block; }
+.win-lit { animation: winflick 7s ease-in-out infinite; } .win-lit:nth-of-type(odd) { animation-duration: 11s; }
+@keyframes winflick { 0%, 100% { opacity: .85; } 47% { opacity: .85; } 50% { opacity: .5; } 53% { opacity: .85; } }
+@media (prefers-reduced-motion: reduce) { .win-lit { animation: none; } }
+.portrait { display: block; flex: none; filter: drop-shadow(0 4px 10px rgba(0, 0, 0, .5)); }
+.art-plan { width: 100%; height: auto; display: block; }
+.art-plan-card { padding: 12px 14px; max-width: 620px; }
+.art-row { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: 16px; align-items: center; margin: 14px 0; }
+.art-plan-wrap { background: var(--ink-1); border: 1px solid var(--ink-3); border-radius: var(--r); padding: 10px; }
+.art-victim { display: grid; gap: 4px; justify-items: center; text-align: center; }
+.art-victim .art-folder { width: 130px; margin-top: 6px; opacity: .9; }
+@media (max-width: 720px) { .art-row { grid-template-columns: 1fr; } }

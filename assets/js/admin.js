@@ -3,10 +3,10 @@ import { initFirebase, state as fb, onAuth, signIn, signOutUser, getClaims, watc
 import { h, clear, icon, logo, busyButton, toast, modal, confirmBox, spinner, copyText, download, b64ToBlob, fmtDateTime, fmtTime, fmtDur, fmtClock, STATUS_SL, OUTCOME_SL, MODE_SL } from './ui.js';
 
 const root = document.getElementById('app');
-const A = { users: {}, index: {}, logs: {}, tab: 'pregled', subs: [], detail: null, f: { q: '', status: '', res: '', mode: '', user: '', from: '', to: '', maxSec: '' }, now: Date.now() };
-setInterval(() => { A.now = Date.now(); if (A.tab === 'aktivne') drawTab(); }, 1000);
+const A = { users: {}, index: {}, logs: {}, codes: {}, tab: 'pregled', subs: [], detail: null, f: { q: '', status: '', res: '', mode: '', user: '', from: '', to: '', maxSec: '' }, now: Date.now() };
+setInterval(() => { A.now = Date.now(); if (A.tab === 'aktivne' || A.tab === 'kode') drawTab(); }, 1000);
 
-const TABS = [['pregled', 'Pregled sistema', 'shield'], ['detektivi', 'Detektivi', 'people'], ['aktivne', 'Aktivne preiskave', 'clock'], ['rezultati', 'Vsi rezultati', 'log'], ['dnevnik', 'Dnevnik dejanj', 'note'], ['resitve', 'Uradne rešitve', 'docs']];
+const TABS = [['pregled', 'Pregled sistema', 'shield'], ['detektivi', 'Detektivi', 'people'], ['kode', 'Kode za dostop', 'lock'], ['aktivne', 'Aktivne preiskave', 'clock'], ['rezultati', 'Vsi rezultati', 'log'], ['dnevnik', 'Dnevnik dejanj', 'note'], ['resitve', 'Uradne rešitve', 'docs']];
 
 function configMissing() { clear(root).append(h('div', { class: 'page page--mid' }, h('div', { class: 'card' }, h('h1', null, 'Zaledje ni nastavljeno'), h('p', null, fb.error), h('p', null, 'Glejte docs/NAMESTITEV.md.')))); }
 
@@ -133,6 +133,77 @@ async function openDetail(id) {
   } catch (e) { clear(body).append(h('div', { class: 'err' }, e.message)); }
 }
 
+
+// ---------- kode za dostop ----------
+const CAT_SL = { solo: 'Solo detektiv', group: 'Skupina detektivov' };
+const usedCount = (c) => Object.keys(c.usedBy || {}).length;
+function codeStatus(c) {
+  const now = A.now; const v = c.validity || {};
+  if (!c.active) return ['Neaktivna', 'bad'];
+  if (v.type === 'until' && now > v.until) return ['Potekla', 'bad'];
+  if (v.type === 'duration' && c.activatedAt && now > c.activatedAt + v.minutes * 60000) return ['Potekla', 'bad'];
+  if (usedCount(c) >= c.maxPeople) return ['Polna', 'warn'];
+  if (v.type === 'duration' && !c.activatedAt) return ['Čaka na aktivacijo', 'warn'];
+  return ['Veljavna', 'ok'];
+}
+function fmtMinutes(m) { if (m % 1440 === 0) return `${m / 1440} d`; if (m % 60 === 0) return `${m / 60} h`; return `${m} min`; }
+function validityText(c) {
+  const v = c.validity || {};
+  if (v.type === 'until') return `do ${fmtDateTime(v.until)}`;
+  const base = `${fmtMinutes(v.minutes)} od aktivacije`;
+  return c.activatedAt ? `${base} (poteče ${fmtDateTime(c.activatedAt + v.minutes * 60000)})` : `${base} (še ni aktivirana)`;
+}
+const toLocalInput = (ts) => { const d = new Date(ts); const p = (n) => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`; };
+
+function codeForm(existing) {
+  const edit = !!existing; const v = (existing && existing.validity) || { type: 'duration', minutes: 120 };
+  const err = h('div', { class: 'err', hidden: true, role: 'alert' });
+  const code = h('input', { id: 'kc', value: existing ? existing.code : '', maxlength: 24, disabled: edit, placeholder: 'prazno = samodejno', style: 'text-transform:uppercase;letter-spacing:.12em' });
+  const cat = h('select', { id: 'kk' }, Object.entries(CAT_SL).map(([k, l]) => h('option', { value: k, selected: existing ? existing.category === k : k === 'solo' }, l)));
+  const people = h('input', { id: 'kp', type: 'number', min: 1, max: 1000, value: existing ? existing.maxPeople : 1 });
+  const note = h('input', { id: 'kn', maxlength: 120, value: (existing && existing.note) || '', placeholder: 'neobvezno, npr. razred 3.B' });
+  const durNum = h('input', { id: 'kdn', type: 'number', min: 1, value: v.type === 'duration' ? (v.minutes % 1440 === 0 ? v.minutes / 1440 : v.minutes % 60 === 0 ? v.minutes / 60 : v.minutes) : 2 });
+  const unitInit = v.type === 'duration' ? (v.minutes % 1440 === 0 ? 'd' : v.minutes % 60 === 0 ? 'h' : 'm') : 'h';
+  const durUnit = h('select', { id: 'kdu', 'aria-label': 'Enota' }, [['m', 'minut'], ['h', 'ur'], ['d', 'dni']].map(([k, l]) => h('option', { value: k, selected: unitInit === k }, l)));
+  const until = h('input', { id: 'ku', type: 'datetime-local', value: toLocalInput(v.type === 'until' ? v.until : Date.now() + 7 * 86400000) });
+  const mode = { value: v.type };
+  const rDur = h('input', { type: 'radio', name: 'kv', id: 'kv1', checked: v.type === 'duration', onchange: () => { mode.value = 'duration'; } });
+  const rUntil = h('input', { type: 'radio', name: 'kv', id: 'kv2', checked: v.type === 'until', onchange: () => { mode.value = 'until'; } });
+  const body = h('div', null, err,
+    h('div', { class: 'field' }, h('label', { for: 'kc' }, 'Koda'), code, h('span', { class: 'hint' }, edit ? 'Kode ni mogoče preimenovati. Ustvarite novo.' : '4–24 znakov: velike črke, številke, vezaj. Če pustite prazno, jo sistem ustvari sam.')),
+    h('div', { class: 'field' }, h('label', { for: 'kk' }, 'Kategorija'), cat),
+    h('div', { class: 'field' }, h('label', { for: 'kp' }, 'Koliko oseb lahko uporabi kodo'), people, h('span', { class: 'hint' }, 'Šteje se vsaka različna oseba. Skupina porabi eno mesto za vsakega člana ekipe (koda za skupino: vsaj 2).')),
+    h('fieldset', { style: 'border:1px solid var(--line, #2a2f36);border-radius:8px;padding:10px 12px;margin:8px 0' }, h('legend', null, 'Veljavnost'),
+      h('div', { class: 'row', style: 'gap:8px;align-items:center;margin-bottom:8px' }, rDur, h('label', { for: 'kv1' }, 'Od aktivacije (prve uporabe) še'), h('div', { style: 'width:90px' }, durNum), h('div', { style: 'width:110px' }, durUnit)),
+      h('div', { class: 'row', style: 'gap:8px;align-items:center' }, rUntil, h('label', { for: 'kv2' }, 'Do datuma in ure'), h('div', null, until))),
+    h('div', { class: 'field' }, h('label', { for: 'kn' }, 'Opomba'), note));
+  modal({ title: edit ? `Urejanje kode ${existing.code}` : 'Nova koda za dostop', body, actions: [{ label: 'Prekliči', value: false }, { label: 'Shrani', kind: 'primary', onClick: async () => {
+    const mult = { m: 1, h: 60, d: 1440 }[durUnit.value];
+    const validity = mode.value === 'until' ? { type: 'until', until: new Date(until.value).getTime() } : { type: 'duration', minutes: Math.round(Number(durNum.value) * mult) };
+    if (mode.value === 'until' && !until.value) { err.textContent = 'Izberite datum in uro.'; err.hidden = false; return false; }
+    try { const r = await call('adminSaveCode', { edit, code: edit ? existing.code : code.value, category: cat.value, maxPeople: Number(people.value), validity, note: note.value }); toast(edit ? 'Koda je shranjena.' : `Koda ${r.code} je ustvarjena.`, 'ok'); } catch (e) { err.textContent = e.message; err.hidden = false; return false; }
+  } }] });
+}
+function tabCodes() {
+  const rows = Object.values(A.codes).sort((a, b) => b.createdAt - a.createdAt);
+  const mk = (c) => {
+    const [st, kind] = codeStatus(c);
+    return h('tr', null, h('td', { class: 'mono', style: 'white-space:nowrap' }, c.code), h('td', null, CAT_SL[c.category] || c.category), h('td', null, `${usedCount(c)} / ${c.maxPeople}`),
+      h('td', null, validityText(c)), h('td', null, h('span', { class: `pill pill--${kind}` }, st)),
+      h('td', { style: 'max-width:220px;font-size:12px' }, Object.values(c.usedBy || {}).map((u) => u.name).join(', ') || '–'), h('td', null, c.note || ''),
+      h('td', null, h('div', { class: 'row', style: 'gap:6px' },
+        h('button', { class: 'btn small', onclick: () => copyText(c.code).then(() => toast('Koda je kopirana.', 'ok')).catch(() => toast('Kopiranje ni uspelo.', 'err')) }, 'Kopiraj'),
+        h('button', { class: 'btn small', onclick: () => codeForm(c) }, 'Uredi'),
+        h('button', { class: 'btn small', onclick: async () => { try { await call('adminSetCodeActive', { code: c.code, active: !c.active }); } catch (e) { toast(e.message, 'err'); } } }, c.active ? 'Deaktiviraj' : 'Aktiviraj'),
+        h('button', { class: 'btn small danger', onclick: async () => { if (!(await confirmBox('Brisanje kode', `Koda ${c.code} bo trajno izbrisana.`, 'Izbriši', true))) return; try { await call('adminDeleteCode', { code: c.code, confirm: true }); toast('Koda je izbrisana.', 'ok'); } catch (e) { toast(e.message, 'err'); } } }, 'Izbriši'))));
+  };
+  return h('div', null, h('h1', null, 'Kode za dostop'),
+    h('p', { class: 'muted' }, 'Vsak začetek preiskave zahteva aktivno in veljavno kodo. Kategoriji: »Solo detektiv« (1 oseba) in »Skupina detektivov« (2–3 osebe).'),
+    h('div', { class: 'adm__bar' }, h('button', { class: 'btn primary', onclick: () => codeForm(null) }, icon('plus', 16), 'Nova koda')),
+    h('div', { class: 'tablewrap' }, h('table', { class: 'data' }, h('thead', null, h('tr', null, ['Koda', 'Kategorija', 'Osebe', 'Veljavnost', 'Stanje', 'Uporabniki', 'Opomba', ''].map((t) => h('th', null, t)))), h('tbody', null, rows.map(mk)))),
+    rows.length ? null : h('p', { class: 'muted', style: 'padding:14px' }, 'Še ni nobene kode. Brez kode igralci ne morejo začeti preiskave.'));
+}
+
 // ---------- dnevnik in rešitve ----------
 function tabLogs() {
   const rows = Object.values(A.logs).sort((a, b) => b.ts - a.ts).slice(0, 500);
@@ -147,7 +218,7 @@ function tabSolutions() {
 // ---------- ogrodje ----------
 let main;
 function keep(id) { const el = document.getElementById(id); const pos = el && el.selectionStart; drawTab(); const n = document.getElementById(id); if (n) { n.focus(); try { n.setSelectionRange(pos, pos); } catch (_) { /* nič */ } } }
-function drawTab() { if (!main) return; clear(main).append({ pregled: tabOverview, detektivi: tabUsers, aktivne: tabActive, rezultati: tabResults, dnevnik: tabLogs, resitve: tabSolutions }[A.tab]()); }
+function drawTab() { if (!main) return; clear(main).append({ pregled: tabOverview, detektivi: tabUsers, aktivne: tabActive, rezultati: tabResults, kode: tabCodes, dnevnik: tabLogs, resitve: tabSolutions }[A.tab]()); }
 function drawAll() {
   const nav = h('nav', { class: 'adm__nav', 'aria-label': 'Administracija' }, h('div', { style: 'padding:6px 8px 14px' }, logo()), TABS.map(([k, l, ic]) => h('button', { class: 'adm__tab', 'aria-current': A.tab === k ? 'page' : 'false', onclick: () => { A.tab = k; drawAll(); } }, icon(ic), l)), h('span', { class: 'spacer' }), h('div', { class: 'muted', style: 'padding:8px;font-size:12px;word-break:break-all' }, currentUser().email), h('button', { class: 'adm__tab', onclick: () => signOutUser() }, 'Odjava'));
   main = h('main', { class: 'adm__main', tabindex: '-1' });
@@ -159,8 +230,8 @@ async function enter(user) {
   if (claims.admin !== true) { await signOutUser(); return loginScreen('Ta račun nima administratorskih pravic.'); }
   try { await call('adminLogin'); } catch (e) { await signOutUser(); return loginScreen(e.message); }
   A.subs.forEach((u) => u()); A.subs = [];
-  const loaded = new Set(); const upd = (k, set) => (v) => { set(v || {}); loaded.add(k); if (loaded.size === 3) { if (!main) drawAll(); else drawTab(); } };
-  A.subs.push(watch('users', upd('u', (v) => { A.users = v; })), watch('investigationIndex', upd('i', (v) => { A.index = v; })), watch('adminAuditLogs', upd('l', (v) => { A.logs = v; })));
+  const loaded = new Set(); const upd = (k, set) => (v) => { set(v || {}); loaded.add(k); if (loaded.size === 4) { if (!main) drawAll(); else drawTab(); } };
+  A.subs.push(watch('users', upd('u', (v) => { A.users = v; })), watch('investigationIndex', upd('i', (v) => { A.index = v; })), watch('adminAuditLogs', upd('l', (v) => { A.logs = v; })), watch('accessCodes', upd('c', (v) => { A.codes = v; })));
   clear(root).append(spinner('Nalagam podatke …'));
 }
 

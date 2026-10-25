@@ -2,6 +2,7 @@
 import { shell, go, S, loadCase } from './app.js';
 import { h, clear, icon, busyButton, toast, modal, confirmBox, sound, spinner, copyText, download, b64ToBlob, fmtDate, fmtDateTime, fmtDur, STATUS_SL, OUTCOME_SL, MODE_SL, rankFor, plural } from './ui.js';
 import { call, watch, startPresence, stopPresence, changePassword } from './backend.js';
+import { portrait, floorPlan, caseFolder } from './art.js';
 
 const BADGES = [
   ['PRVA PREISKAVA', 'Zaključena prva preiskava (uspešna ali ne).', 'shield'],
@@ -47,8 +48,8 @@ async function dashboard() {
 
   const soloBtn = busyButton(h('button', { class: 'btn primary' }, 'Začni solo preiskavo'), async () => {
     err.hidden = true;
-    if (!(await confirmStart(c, 'solo'))) return;
-    try { const r = await call('createInvestigation'); if (!r.resumed) await call('startInvestigation', { id: r.id }); go(`#/preiskava/${r.id}`); } catch (e) { showErr(e.message); }
+    const accessCode = await confirmStart(c, 'solo'); if (!accessCode) return;
+    try { const r = await call('createInvestigation', { solo: true, accessCode }); if (!r.resumed || r.status === 'lobby') await call('startInvestigation', { id: r.id, accessCode }); go(`#/preiskava/${r.id}`); } catch (e) { showErr(e.message); }
   });
   const teamBtn = busyButton(h('button', { class: 'btn' }, 'Ustvari preiskovalno sobo'), async () => {
     err.hidden = true;
@@ -64,6 +65,7 @@ async function dashboard() {
     h('div', { class: 'card card--glow', style: 'margin-top:20px' },
       h('div', { class: 'kicker' }, 'Zaupni primer'), h('h2', null, c.meta.title), h('p', { class: 'muted' }, c.meta.subtitle),
       c.meta.briefing.slice(0, 2).map((t) => h('p', null, t)),
+      h('div', { class: 'art-row' }, h('div', { class: 'art-plan-wrap' }, floorPlan()), h('div', { class: 'art-victim' }, portrait('V', 96, c.victim.name), h('b', null, c.victim.name), h('small', { class: 'muted' }, c.victim.job), caseFolder())),
       h('details', null, h('summary', { style: 'cursor:pointer;color:var(--red-3);margin-bottom:10px' }, 'Pravila preiskave'), h('ul', null, c.meta.rules.map((t) => h('li', null, t)))),
       activeBox, err,
       h('div', { class: 'row', style: 'margin-top:16px' }, soloBtn, teamBtn, h('span', { class: 'spacer' }),
@@ -82,12 +84,20 @@ async function dashboard() {
   return () => unsubs.forEach((u) => u());
 }
 
+// Vrne kodo za dostop (niz), če je uporabnik potrdil, sicer null. Brez kode se preiskava ne more začeti.
 function confirmStart(c, mode) {
+  const code = h('input', { id: 'acode', maxlength: 24, autocomplete: 'off', placeholder: 'npr. ABCD-2345', style: 'text-transform:uppercase;letter-spacing:.15em;font-family:var(--font-mono)' });
+  const err = h('div', { class: 'err', hidden: true, role: 'alert' });
+  let val = null;
   return new Promise((res) => modal({
     title: 'Pred začetkom preiskave',
     body: h('div', null, h('p', null, 'Ko preiskavo začnete, se odštevanje (60 minut) ne ustavi: osvežitev strani, odklop ali zaprtje brskalnika ga ne ustavijo.'),
-      h('ul', null, h('li', null, `Namig stane ${c.meta.hintPenalty} točk, napačna končna obtožba ${c.meta.wrongAccusationPenalty} točk.`), h('li', null, `Končnih obtožb je največ ${c.meta.maxAccusations}.`), h('li', null, 'Sestava ekipe se po začetku zaklene.'))),
-    actions: [{ label: 'Prekliči', value: false }, { label: 'Začni preiskavo', kind: 'primary', value: true }], onClose: (v) => res(v === true),
+      h('ul', null, h('li', null, `Namig stane ${c.meta.hintPenalty} točk, napačna končna obtožba ${c.meta.wrongAccusationPenalty} točk.`), h('li', null, `Končnih obtožb je največ ${c.meta.maxAccusations}.`), h('li', null, 'Sestava ekipe se po začetku zaklene.')),
+      err,
+      h('div', { class: 'field' }, h('label', { for: 'acode' }, mode === 'solo' ? 'Koda za dostop (Solo detektiv)' : 'Koda za dostop (Skupina detektivov)'), code,
+        h('span', { class: 'hint' }, 'Kodo za vsak začetek preiskave dobite od administratorja. To ni koda za povabilo v sobo.'))),
+    actions: [{ label: 'Prekliči', value: false }, { label: 'Začni preiskavo', kind: 'primary', onClick: () => { if (!code.value.trim()) { err.textContent = 'Vnesite kodo za dostop.'; err.hidden = false; code.focus(); return false; } val = code.value.trim(); } }],
+    onClose: () => res(val),
   }));
 }
 
@@ -129,8 +139,8 @@ async function lobby(id) {
     const members = Object.entries(core.members || {});
     const isHost = core.hostUid === S.user.uid;
     const startBtn = busyButton(h('button', { class: 'btn primary' }, 'Začni preiskavo'), async () => {
-      if (!(await confirmStart(c, 'team'))) return;
-      try { await call('startInvestigation', { id }); } catch (e) { showErr(e.message); }
+      const accessCode = await confirmStart(c, members.length === 1 ? 'solo' : 'team'); if (!accessCode) return;
+      try { await call('startInvestigation', { id, accessCode }); } catch (e) { showErr(e.message); }
     });
     const leaveBtn = busyButton(h('button', { class: 'btn ghost' }, 'Zapusti sobo'), async () => { try { await call('leaveInvestigation', { id }); } catch (e) { /* nič */ } go('#/nadzorna-plosca'); });
     clear(view).append(
