@@ -116,7 +116,7 @@ async function dashboard() {
       : concl1 ? { label: 'Zaključen, nerešen', kind: 'warn', note: 'Primer je odklenjen za vedno. Kode ne potrebujete več.', canPlay: true }
         : acc1 ? { label: 'Odklenjen', kind: 'ok', note: 'Koda ni več potrebna.', canPlay: true }
           : { label: 'Čaka na kodo', kind: 'warn', note: 'Kodo vnesite zgoraj ali jo vpišite ob začetku preiskave.', canPlay: true };
-    const s2 = !concl1 ? { label: 'Zaklenjen', kind: 'bad', note: 'Odklene se šele po zaključenem Primeru 001 in z veljavno kodo za Primer 002.', canPlay: false }
+    const s2 = !concl1 ? { label: 'Zaklenjen', kind: 'bad', note: 'Odklene se po zaključenem Primeru 001 in z veljavno kodo za Primer 002. Lahko pa se kot gost pridružite ekipi igralca, ki je Primer 001 že zaključil (koda za povabilo spodaj).', canPlay: false }
       : acc2 ? { label: solved2 ? 'Rešen' : 'Odklenjen', kind: 'ok', note: solved2 ? 'Primer je odklenjen za vedno. Lahko ga ponovite.' : 'Koda ni več potrebna.', canPlay: true }
         : { label: 'Čaka na kodo', kind: 'warn', note: 'Vnesite kodo za Primer 002 zgoraj.', canPlay: false };
     clear(casesBox).append(caseCard('001', CASE1, c.meta, s1), caseCard('002', CASE2, CASE2_META, s2));

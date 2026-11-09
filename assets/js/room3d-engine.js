@@ -29,7 +29,7 @@ export function createEngine(canvas, scene, opts = {}) {
   const g = canvas.getContext('2d', { alpha: false });
   const S = {
     pos: { x: scene.spawn.x, y: 1.62, z: scene.spawn.z }, yaw: scene.spawn.yaw || 0, pitch: 0,
-    flash: false, uv: false, hover: null, state: {}, auto: null, t: 0,
+    flash: false, uv: false, gain: 1.0, hover: null, state: {}, auto: null, t: 0,
     keys: new Set(), pad: { f: 0, s: 0, r: 0 }, W: 800, H: 500, dpr: 1, running: true, last: performance.now(),
   };
   const fov = (opts.fov || 72) * Math.PI / 180;
@@ -135,7 +135,7 @@ export function createEngine(canvas, scene, opts = {}) {
 
   // ---------- osvetlitev v zagonu ----------
   function dynLight(P, N, base) {
-    let r = base[0], gg = base[1], b = base[2];
+    let r = base[0] * S.gain, gg = base[1] * S.gain, b = base[2] * S.gain;
     if (S.uv) { r = 0.16; gg = 0.07; b = 0.34; }
     const dx = P[0] - S.pos.x, dy = P[1] - S.pos.y, dz = P[2] - S.pos.z;
     const d = Math.hypot(dx, dy, dz) || 1e-6;
@@ -174,7 +174,7 @@ export function createEngine(canvas, scene, opts = {}) {
   }
 
   // ---------- predmeti ----------
-  const stateOf = () => S.state;
+  const stateOf = () => { S.state.uv = S.uv; return S.state; };
   const hiddenNow = (b) => (b.hide ? !!b.hide(stateOf()) : false);
   const offNow = (b) => (b.off ? b.off(stateOf()) : null);
 
@@ -413,6 +413,7 @@ export function createEngine(canvas, scene, opts = {}) {
   return {
     S,
     setState(st) { S.state = st; },
+    setGain(v) { S.gain = v; },
     setFlash(on) { S.flash = !!on; if (on) S.uv = false; },
     setUv(on) { S.uv = !!on; if (on) S.flash = false; },
     look(yaw, pitch) { S.yaw = yaw; S.pitch = pitch || 0; },

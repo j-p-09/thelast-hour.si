@@ -31,11 +31,13 @@ export function buildScene() {
     g.fillStyle = '#1a1008'; g.fillRect(85, 96, 90, 12); g.fillStyle = '#2a1a10'; g.fillRect(95, 88, 70, 10);
     g.fillStyle = sh('#6a645a', L); g.fillRect(205, 60, 14, 6); g.fillStyle = sh('#9a8a60', L); g.fillRect(212, 52, 3, 20);
   } } } });
-  B('fp_ud', 'fireplace', [-1.3, 0, -3.0], [-1.28, 0.01, -2.99], '#000', { ghost: true, noPick: true });
   B('fp_mantel', 'fireplace', [-1.45, 1.25, -3.0], [1.45, 1.36, -2.5], '#4a3020');
   B('fp_breast', 'fireplace', [-1.0, 1.36, -3.0], [1.0, 3.2, -2.78], '#7a7368');
-  B('fp_uv', 'fireplace', [-1.3, 0, -2.56], [1.3, 1.25, -2.55], '#000', { ghost: true });
-  boxes[boxes.length - 1].decals = { '+z': { uv: true, draw(g, { st }) { g.fillStyle = 'rgba(200,220,255,.95)'; for (let i = 0; i < 18; i++) { g.fillRect(208 + (i % 6) * 2.2, 52 + (i / 6 | 0) * 5, 1.6, 4); } g.shadowColor = '#9fd'; g.shadowBlur = 8; g.fillRect(205, 50, 16, 24); } } };
+  // UV: bela vlakna na ročaju zaklopke (vidna samo z vklopljeno UV-svetilko)
+  B('fp_uv', 'fireplace', [0.72, 0.5, -2.553], [0.95, 0.78, -2.548], '#14102a', { solid: false, hide: (s) => !s.uv, decals: { '+z': { uv: true, draw(g, { w, h }) {
+    g.shadowColor = '#9fe'; g.shadowBlur = 6; g.fillStyle = 'rgba(210,230,255,.95)';
+    for (let i = 0; i < 26; i++) { g.fillRect((i * 37) % (w - 3) + 1, (i * 53) % (h - 6) + 1, 1.8, 5); }
+  } } } });
 
   // ---- detektor CO ----
   B('det', 'detector', [-1.65, 2.5, -3.0], [-1.35, 2.7, -2.92], '#ececec', { solid: false, decals: { '+z': { range: 6, draw(g, { L }) { g.fillStyle = sh('#222', 1); g.fillRect(6, 6, 18, 8); g.fillStyle = '#400'; g.fillRect(8, 8, 6, 4); } } } });
@@ -159,5 +161,5 @@ export function buildScene() {
     { pos: [-3.4, 2.0, 0.0], color: [0.45, 0.6, 1.0], intensity: 0.7, range: 6.5 },
     { pos: [0, 3.0, 0.0], color: [1.0, 0.85, 0.65], intensity: 0.4, range: 9 },
   ];
-  return { room: { w: 8, d: 6, h: 3.2, floor: '#6a4a30', wall: '#7b4343', wainscot: '#3a2418', ceiling: '#a89f8e' }, boxes, lights, ambient: 0.3, spawn: { x: -2.0, z: 1.8, yaw: 0.75 } };
+  return { room: { w: 8, d: 6, h: 3.2, floor: '#6a4a30', wall: '#7b4343', wainscot: '#3a2418', ceiling: '#a89f8e' }, boxes, lights, ambient: 0.5, spawn: { x: -2.0, z: 1.8, yaw: 0.75 } };
 }

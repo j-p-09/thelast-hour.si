@@ -3,6 +3,7 @@ import { shell, go, S } from './app.js';
 import { h, clear, icon, logo, busyButton, toast, confirmBox, sound, soundSettings, spinner, fmtClock, $ } from './ui.js';
 import { call, watch, serverNow, startPresence, stopPresence } from './backend.js';
 import { createEngine } from './room3d-engine.js';
+import { createRealEngine } from './room3d-real.js';
 import { buildScene, OBJECT_LABELS } from './room3d-scene.js';
 import { CASE2_META as M, SUSPECTS, ACCUSE_FORM } from './room3d-data.js';
 
@@ -13,7 +14,11 @@ export async function room3dScreen(id) {
   const host = h('div', { class: 'r3' }, spinner('Odpiram sobo …'));
   shell(host, { bare: true });
 
-  const canvas = h('canvas', { class: 'r3__canvas', tabindex: '0', 'aria-label': 'Virtualna soba. Premikajte se s tipkami W A S D, predmete pregledate s klikom.' });
+  const makeCanvas = () => h('canvas', { class: 'r3__canvas', tabindex: '0', 'aria-label': 'Virtualna soba. Premikajte se s tipkami W A S D, predmete pregledate s klikom.' });
+  let canvas = makeCanvas();
+  let quality = 'light'; try { quality = localStorage.getItem('tlh.r3.quality') === 'real' ? 'real' : 'light'; } catch (_) { /* nič */ }
+  const qLabel = () => (quality === 'real' ? 'Kakovost: realistična' : 'Kakovost: lahka');
+  const qBtn = h('button', { class: 'btn small', onclick: () => setQuality(quality === 'real' ? 'light' : 'real') }, qLabel());
   const timerEl = h('div', { class: 'timer', role: 'timer', 'aria-label': 'Preostali čas' }, h('span', { class: 'timer__num' }, '60:00'), h('span', { class: 'timer__lbl' }, ''));
   const teamEl = h('div', { class: 'team' });
   const statEl = h('div', { class: 'room__stats' });
@@ -41,11 +46,14 @@ export async function room3dScreen(id) {
   const dpad = h('div', { class: 'r3__dpad' }, padBtn('▲', 'f+', 'Naprej'), padBtn('◀', 's-', 'Levo'), padBtn('▼', 'f-', 'Nazaj'), padBtn('▶', 's+', 'Desno'));
   const turn = h('div', { class: 'r3__turn' }, padBtn('⟲', 'r-', 'Obrni levo'), padBtn('⟳', 'r+', 'Obrni desno'));
   const flashBtn = h('button', { class: 'btn small', onclick: () => toggleFlash() }, 'Svetilka (F)');
+  const GAINS = [['Svetlost: srednja', 1.25], ['Svetlost: visoka', 1.8], ['Svetlost: nizka', 0.8]];
+  let gainI = 0;
+  const gainBtn = h('button', { class: 'btn small', onclick: () => { gainI = (gainI + 1) % GAINS.length; gainBtn.textContent = GAINS[gainI][0]; if (eng) eng.setGain(GAINS[gainI][1]); } }, GAINS[0][0]);
   const uvBtn = h('button', { class: 'btn small', hidden: true, onclick: () => toggleUv() }, 'UV (U)');
 
   clear(host).append(live,
     h('header', { class: 'room__top' }, h('a', { class: 'logo', href: '#/nadzorna-plosca', 'aria-label': 'Nadzorna plošča' }, logo()), h('div', { class: 'room__case' }, h('b', null, M.title)), timerEl, teamEl, h('span', { class: 'spacer' }), statEl, nbBtn, soundBtn, leaveBtn),
-    h('div', { class: 'r3__stage' }, canvas, tip, dpad, turn, h('div', { class: 'r3__tools' }, invEl, flashBtn, uvBtn), dialogHost, nbHost));
+    h('div', { class: 'r3__stage' }, canvas, tip, dpad, turn, h('div', { class: 'r3__tools' }, invEl, flashBtn, gainBtn, qBtn, uvBtn), dialogHost, nbHost));
 
   // ---------- pomoč ----------
   const found = () => R.progress.found || {};
@@ -58,19 +66,37 @@ export async function room3dScreen(id) {
 
   // ---------- prikazovalnik ----------
   let eng = null;
+  let mounting = false, hoverTimer = null;
   function startEngine() {
-    if (eng) return;
-    eng = createEngine(canvas, buildScene(), {
-      onInteract: (obj) => interact(obj), onFlash: () => toggleFlash(), onUv: () => toggleUv(),
+    if (eng || mounting) return;
+    mount(quality, false).then(() => {
+      hoverTimer = setInterval(() => { const o = eng && eng.hoverObj(); if (o) { tip.textContent = OBJECT_LABELS[o] || o; tip.hidden = false; } else tip.hidden = true; }, 120);
     });
-    window.__tlhEngine = eng;
-    pushState();
-    hoverTimer = setInterval(() => {
-      const o = eng.hoverObj();
-      if (o) { tip.textContent = OBJECT_LABELS[o] || o; tip.hidden = false; } else tip.hidden = true;
-    }, 120);
   }
-  let hoverTimer = null;
+  // Zamenjava prikazovalnika (lahki / realistični). Platno z enim tipom konteksta ne more postati drugega, zato vsakič novo.
+  async function mount(kind, userChose) {
+    mounting = true;
+    const stage = host.querySelector('.r3__stage');
+    const prev = eng ? { x: eng.S.pos.x, z: eng.S.pos.z, yaw: eng.S.yaw, pitch: eng.S.pitch } : null;
+    const handlers = { onInteract: (obj) => interact(obj), onFlash: () => toggleFlash(), onUv: () => toggleUv() };
+    const build = () => { const sc = buildScene(); if (prev) sc.spawn = { x: prev.x, z: prev.z, yaw: prev.yaw }; return sc; };
+    const place = () => { const fresh = makeCanvas(); stage.replaceChild(fresh, canvas); canvas = fresh; return fresh; };
+    let next = null, used = kind;
+    if (kind === 'real') {
+      if (userChose || true) toast('Nalagam realistični prikaz …', 'info', 3500);
+      try { next = await createRealEngine(place(), build(), { ...handlers, start: prev }); }
+      catch (e) { console.error(e); toast(`${e.message} Ostajate na lahki različici.`, 'err', 9000); used = 'light'; next = null; }
+    }
+    if (!next) {
+      try { next = createEngine(place(), build(), handlers); }
+      catch (e) { console.error(e); stage.append(h('div', { class: 'r3__fail' }, 'Prikaz sobe se ni zagnal: ' + (e && e.message ? e.message : e), h('br'), 'Poskusite osvežiti stran ali drug brskalnik.')); mounting = false; return; }
+    }
+    const old = eng; eng = next; if (old) old.destroy();
+    quality = used; qBtn.textContent = qLabel(); try { localStorage.setItem('tlh.r3.quality', quality); } catch (_) { /* nič */ }
+    window.__tlhEngine = eng; eng.setGain(GAINS[gainI][1]); pushState(); sync();
+    mounting = false;
+  }
+  function setQuality(k) { if (mounting || k === quality) return; mount(k, true); }
   function pushState() { if (eng) eng.setState({ items: items(), solved: solved(), revealed: R.progress.revealed || {}, found: found() }); }
   function toggleFlash() { R.flash = !R.flash; if (R.flash) R.uv = false; sync(); }
   function toggleUv() { if (!items().uv) return; R.uv = !R.uv; if (R.uv) R.flash = false; sync(); }
@@ -255,7 +281,7 @@ export async function room3dScreen(id) {
 
   let ready = false;
   const after = () => {
-    if (R.loaded.size >= 6) {
+    if (R.loaded.size >= 3 && R.loaded.has('core') && R.loaded.has('progress') && R.loaded.has('content')) {
       if (!ready) { ready = true; startEngine(); tick(); introOverlay(); }
       pushState(); drawTop(); sync();
       const a = document.activeElement;

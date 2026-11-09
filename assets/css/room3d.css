@@ -44,3 +44,6 @@
 @media (max-width: 720px) { .r3__tools { max-width: 100%; } .r3__nb { width: 100%; } .r3__keys dt { float: none; width: auto; } .r3__keys dd { margin-left: 0; } }
 
 .r3 .room__top { flex-wrap: wrap; row-gap: 6px; }
+
+.r3__canvas { position: absolute; inset: 0; }
+.r3__fail { position: absolute; left: 12px; right: 12px; top: 80px; padding: 14px; background: #3a1216; border: 1px solid #a33; border-radius: 10px; color: #fff; z-index: 6; }
