@@ -2,7 +2,7 @@
 import { shell, go, S, loadCase } from './app.js';
 import { h, clear, icon, busyButton, toast, modal, confirmBox, sound, spinner, copyText, download, b64ToBlob, fmtDate, fmtDateTime, fmtDur, STATUS_SL, OUTCOME_SL, MODE_SL, rankFor, plural } from './ui.js';
 import { call, watch, startPresence, stopPresence, changePassword } from './backend.js';
-import { portrait, floorPlan, caseFolder } from './art.js';
+import { CASE2_META } from './room3d-data.js';
 
 const BADGES = [
   ['PRVA PREISKAVA', 'Zaključena prva preiskava (uspešna ali ne).', 'shield'],
@@ -37,43 +37,100 @@ function historyList(rows) {
       h('td', null, h('a', { class: 'btn small ghost', href: `#/rezultat/${r.id}` }, 'Odpri')))))));
 }
 
+
+const CASE1 = 'PRIMER-001', CASE2 = 'PRIMER-002';
+const caseRows = (rows, caseId) => Object.values(rows || {}).filter((r) => (r.caseId || CASE1) === caseId);
+// Shranjena koda za primer (vpisana na nadzorni plošči), ki ustreza kategoriji.
+function storedCode(caseId, category) {
+  const acc = ((S.profile && S.profile.access) || {})[caseId] || {};
+  const hit = Object.entries(acc).find(([, v]) => v && v.category === category);
+  return hit ? hit[0] : null;
+}
+
 async function dashboard() {
   const c = await loadCase();
   const body = h('div', { class: 'page' });
   const hist = h('div', null, spinner());
   const activeBox = h('div');
-  const codeIn = h('input', { id: 'code', maxlength: 6, placeholder: 'KODA', autocomplete: 'off', style: 'text-transform:uppercase;letter-spacing:.3em;text-align:center;font-family:var(--font-mono)' });
+  const casesBox = h('div', { class: 'cases' });
+  let rows = null;
   const err = h('div', { class: 'err', hidden: true, role: 'alert' });
   const showErr = (m) => { err.textContent = m; err.hidden = false; };
 
-  const soloBtn = busyButton(h('button', { class: 'btn primary' }, 'Začni solo preiskavo'), async () => {
+  const kodaIn = h('input', { id: 'kodaa', maxlength: 24, placeholder: 'npr. ABCD-2345', autocomplete: 'off', style: 'text-transform:uppercase;letter-spacing:.15em;font-family:var(--font-mono)' });
+  const actBtn = busyButton(h('button', { class: 'btn primary' }, 'Odkleni primer'), async () => {
     err.hidden = true;
-    const accessCode = await confirmStart(c, 'solo'); if (!accessCode) return;
-    try { const r = await call('createInvestigation', { solo: true, accessCode }); if (!r.resumed || r.status === 'lobby') await call('startInvestigation', { id: r.id, accessCode }); go(`#/preiskava/${r.id}`); } catch (e) { showErr(e.message); }
+    try {
+      const r = await call('activateCode', { code: kodaIn.value });
+      kodaIn.value = ''; sound.ok();
+      toast(`Koda sprejeta: Primer ${r.caseId === CASE2 ? '002' : '001'} je odklenjen (${r.category === 'solo' ? 'Solo detektiv' : 'Skupina detektivov'}).`, 'ok', 6000);
+      setTimeout(drawCases, 400); setTimeout(drawCases, 1500);
+    } catch (e) { showErr(e.message); }
   });
-  const teamBtn = busyButton(h('button', { class: 'btn' }, 'Ustvari preiskovalno sobo'), async () => {
-    err.hidden = true;
-    try { const r = await call('createInvestigation'); go(`#/lobby/${r.id}`); } catch (e) { showErr(e.message); }
-  });
+  const codeIn = h('input', { id: 'code', maxlength: 6, placeholder: 'KODA', autocomplete: 'off', style: 'text-transform:uppercase;letter-spacing:.3em;text-align:center;font-family:var(--font-mono)' });
   const joinBtn = busyButton(h('button', { class: 'btn' }, 'Pridruži se'), async () => {
     err.hidden = true;
     try { const r = await call('joinInvestigation', { code: codeIn.value }); go(`#/${r.rejoined ? 'preiskava' : 'lobby'}/${r.id}`); } catch (e) { showErr(e.message); }
   });
 
+  async function startSolo(caseId) {
+    err.hidden = true;
+    let accessCode = storedCode(caseId, 'solo');
+    const meta = caseId === CASE2 ? CASE2_META : c.meta;
+    if (!accessCode) { accessCode = await confirmStart(meta, 'solo', caseId); if (!accessCode) return; }
+    try {
+      const r = await call('createInvestigation', { solo: true, accessCode, caseId });
+      if (!r.resumed || r.status === 'lobby') await call('startInvestigation', { id: r.id, accessCode });
+      go(`#/preiskava/${r.id}`);
+    } catch (e) { showErr(e.message); }
+  }
+  async function startTeam(caseId) {
+    err.hidden = true;
+    try { const r = await call('createInvestigation', { caseId }); go(`#/lobby/${r.id}`); } catch (e) { showErr(e.message); }
+  }
+
+  function caseCard(no, caseId, meta, state) {
+    const { label, kind, note, canPlay } = state;
+    const soloB = busyButton(h('button', { class: 'btn primary', disabled: !canPlay }, 'Začni solo preiskavo'), () => startSolo(caseId));
+    const teamB = busyButton(h('button', { class: 'btn', disabled: !canPlay }, 'Ustvari preiskovalno sobo'), () => startTeam(caseId));
+    return h('div', { class: 'card case' + (canPlay ? ' card--glow' : ' case--locked') },
+      h('div', { class: 'row' }, h('div', { class: 'kicker' }, `Primer ${no}`), h('span', { class: 'spacer' }), h('span', { class: `pill pill--${kind}` }, label)),
+      h('h2', null, meta.title.replace(/^PRIMER \d+: /, '')), h('p', { class: 'muted' }, meta.subtitle),
+      h('p', { class: 'case__kind' }, caseId === CASE2 ? 'Virtualna 3D soba: premikate se po prostoru in odkrivate predmete. Malo branja, veliko iskanja.' : 'Zaupni spisi: dokumenti, zaslišanja, uganke in tabla s povezavami.'),
+      note ? h('p', { class: 'hint' }, note) : null,
+      h('div', { class: 'row', style: 'margin-top:10px' }, soloB, teamB));
+  }
+
+  function drawCases() {
+    const done1 = caseRows(rows, CASE1), done2 = caseRows(rows, CASE2);
+    const solved1 = done1.some((r) => r.outcome === 'success'), solved2 = done2.some((r) => r.outcome === 'success');
+    const concl1 = done1.some((r) => r.outcome !== 'aborted');
+    const acc1 = ((S.profile && S.profile.access) || {})[CASE1], acc2 = ((S.profile && S.profile.access) || {})[CASE2];
+    const s1 = solved1 ? { label: 'Rešen', kind: 'ok', note: 'Primer ste že rešili. Lahko ga ponovite.', canPlay: true }
+      : concl1 ? { label: 'Zaključen, nerešen', kind: 'warn', note: acc1 ? 'Imate odklenjeno kodo.' : 'Za novo preiskavo vnesite kodo ali jo vpišite ob začetku.', canPlay: true }
+        : { label: acc1 ? 'Odklenjen' : 'Čaka na kodo', kind: acc1 ? 'ok' : 'warn', note: acc1 ? null : 'Kodo vnesite zgoraj ali jo vpišite ob začetku preiskave.', canPlay: true };
+    const s2 = !concl1 ? { label: 'Zaklenjen', kind: 'bad', note: 'Odklene se šele po zaključenem Primeru 001 in z veljavno kodo za Primer 002.', canPlay: false }
+      : solved2 ? { label: 'Rešen', kind: 'ok', note: 'Primer ste že rešili.', canPlay: !!acc2 || true }
+        : done2.length && !acc2 ? { label: 'Zaključen, nerešen', kind: 'warn', note: 'Za novo preiskavo vnesite kodo za Primer 002.', canPlay: !!acc2 }
+          : acc2 ? { label: 'Odklenjen', kind: 'ok', note: null, canPlay: true } : { label: 'Čaka na kodo', kind: 'warn', note: 'Vnesite kodo za Primer 002 zgoraj.', canPlay: false };
+    if (solved2 && !acc2) s2.canPlay = false, s2.note = 'Rešen. Za ponovitev vnesite kodo za Primer 002.';
+    clear(casesBox).append(caseCard('001', CASE1, c.meta, s1), caseCard('002', CASE2, CASE2_META, s2));
+  }
+
   body.append(
     h('div', { class: 'grid c2' }, idCard(S.profile), h('div', null, h('div', { class: 'kicker' }, 'Pregled'), statsRow(S.profile))),
-    h('div', { class: 'card card--glow', style: 'margin-top:20px' },
-      h('div', { class: 'kicker' }, 'Zaupni primer'), h('h2', null, c.meta.title), h('p', { class: 'muted' }, c.meta.subtitle),
-      c.meta.briefing.slice(0, 2).map((t) => h('p', null, t)),
-      h('div', { class: 'art-row' }, h('div', { class: 'art-plan-wrap' }, floorPlan()), h('div', { class: 'art-victim' }, portrait('V', 96, c.victim.name), h('b', null, c.victim.name), h('small', { class: 'muted' }, c.victim.job), caseFolder())),
-      h('details', null, h('summary', { style: 'cursor:pointer;color:var(--red-3);margin-bottom:10px' }, 'Pravila preiskave'), h('ul', null, c.meta.rules.map((t) => h('li', null, t)))),
-      activeBox, err,
-      h('div', { class: 'row', style: 'margin-top:16px' }, soloBtn, teamBtn, h('span', { class: 'spacer' }),
-        h('div', { class: 'row', style: 'gap:8px' }, h('label', { class: 'sr-only', for: 'code' }, 'Koda za povabilo'), h('div', { style: 'width:150px' }, codeIn), joinBtn))),
+    h('div', { class: 'card', style: 'margin-top:20px' },
+      h('h2', null, 'Koda za dostop'), h('p', { class: 'muted' }, 'Vpišite kodo, ki ste jo prejeli. Vsaka koda velja za en primer; odklene ga na vašem računu.'),
+      h('div', { class: 'row' }, h('label', { class: 'sr-only', for: 'kodaa' }, 'Koda za dostop'), h('div', { style: 'flex:1;min-width:200px;max-width:320px' }, kodaIn), actBtn), err),
+    activeBox,
+    h('h2', { style: 'margin-top:24px' }, 'Primeri'), casesBox,
+    h('div', { class: 'row card', style: 'margin-top:18px;gap:10px' }, h('b', null, 'Imate kodo za povabilo v sobo?'), h('span', { class: 'spacer' }), h('label', { class: 'sr-only', for: 'code' }, 'Koda za povabilo'), h('div', { style: 'width:150px' }, codeIn), joinBtn),
+    h('details', { class: 'rulesbox' }, h('summary', null, 'Pravila preiskave'), h('ul', null, c.meta.rules.map((t) => h('li', null, t)))),
     h('h2', { style: 'margin-top:28px' }, 'Zgodovina preiskav'), hist);
 
   const unsubs = [
-    watch(`userInvestigations/${S.user.uid}`, (rows) => { clear(hist).append(historyList(rows)); }),
+    watch(`userInvestigations/${S.user.uid}`, (r) => { rows = r || {}; clear(hist).append(historyList(rows)); drawCases(); }),
+    watch(`users/${S.user.uid}`, () => { if (rows) drawCases(); }),
     watch(`userActive/${S.user.uid}`, async (id) => {
       clear(activeBox);
       if (!id) return;
@@ -85,17 +142,19 @@ async function dashboard() {
 }
 
 // Vrne kodo za dostop (niz), če je uporabnik potrdil, sicer null. Brez kode se preiskava ne more začeti.
-function confirmStart(c, mode) {
+function confirmStart(meta, mode, caseId) {
   const code = h('input', { id: 'acode', maxlength: 24, autocomplete: 'off', placeholder: 'npr. ABCD-2345', style: 'text-transform:uppercase;letter-spacing:.15em;font-family:var(--font-mono)' });
   const err = h('div', { class: 'err', hidden: true, role: 'alert' });
   let val = null;
+  const no = caseId === CASE2 ? '002' : '001';
+  const pen = meta.hintPenalty, wr = meta.wrongAccusationPenalty || meta.wrongPenalty;
   return new Promise((res) => modal({
-    title: 'Pred začetkom preiskave',
+    title: `Pred začetkom: Primer ${no}`,
     body: h('div', null, h('p', null, 'Ko preiskavo začnete, se odštevanje (60 minut) ne ustavi: osvežitev strani, odklop ali zaprtje brskalnika ga ne ustavijo.'),
-      h('ul', null, h('li', null, `Namig stane ${c.meta.hintPenalty} točk, napačna končna obtožba ${c.meta.wrongAccusationPenalty} točk.`), h('li', null, `Končnih obtožb je največ ${c.meta.maxAccusations}.`), h('li', null, 'Sestava ekipe se po začetku zaklene.')),
+      h('ul', null, h('li', null, `Namig stane ${pen} točk, napačna končna obtožba ${wr} točk.`), h('li', null, `Končnih obtožb je največ ${meta.maxAccusations}.`), h('li', null, 'Sestava ekipe se po začetku zaklene.')),
       err,
-      h('div', { class: 'field' }, h('label', { for: 'acode' }, mode === 'solo' ? 'Koda za dostop (Solo detektiv)' : 'Koda za dostop (Skupina detektivov)'), code,
-        h('span', { class: 'hint' }, 'Kodo za vsak začetek preiskave dobite od administratorja. To ni koda za povabilo v sobo.'))),
+      h('div', { class: 'field' }, h('label', { for: 'acode' }, mode === 'solo' ? `Koda za dostop (Primer ${no}, Solo detektiv)` : `Koda za dostop (Primer ${no}, Skupina detektivov)`), code,
+        h('span', { class: 'hint' }, 'Kodo ste lahko vnesli že na nadzorni plošči. Če ne, jo vpišite tukaj. To ni koda za povabilo v sobo.'))),
     actions: [{ label: 'Prekliči', value: false }, { label: 'Začni preiskavo', kind: 'primary', onClick: () => { if (!code.value.trim()) { err.textContent = 'Vnesite kodo za dostop.'; err.hidden = false; code.focus(); return false; } val = code.value.trim(); } }],
     onClose: () => res(val),
   }));
@@ -138,13 +197,15 @@ async function lobby(id) {
     if (core.status !== 'lobby') return go('#/nadzorna-plosca');
     const members = Object.entries(core.members || {});
     const isHost = core.hostUid === S.user.uid;
+    const caseId = core.caseId || CASE1; const meta = caseId === CASE2 ? CASE2_META : c.meta;
     const startBtn = busyButton(h('button', { class: 'btn primary' }, 'Začni preiskavo'), async () => {
-      const accessCode = await confirmStart(c, members.length === 1 ? 'solo' : 'team'); if (!accessCode) return;
+      const cat = members.length === 1 ? 'solo' : 'group';
+      const accessCode = storedCode(caseId, cat) || await confirmStart(meta, cat, caseId); if (!accessCode) return;
       try { await call('startInvestigation', { id, accessCode }); } catch (e) { showErr(e.message); }
     });
     const leaveBtn = busyButton(h('button', { class: 'btn ghost' }, 'Zapusti sobo'), async () => { try { await call('leaveInvestigation', { id }); } catch (e) { /* nič */ } go('#/nadzorna-plosca'); });
     clear(view).append(
-      h('div', { class: 'kicker' }, 'Čakalnica'), h('h1', null, 'Preiskovalna soba'),
+      h('div', { class: 'kicker' }, `Čakalnica · Primer ${caseId === CASE2 ? '002' : '001'}`), h('h1', null, 'Preiskovalna soba'),
       h('div', { class: 'card card--glow' },
         h('p', { class: 'muted' }, 'Pošljite kodo prijateljema (največ dva dodatna detektiva). Ko gostitelj začne preiskavo, se sestava ekipe zaklene.'),
         h('div', { class: 'row' }, h('span', { class: 'code', 'aria-label': `Koda za povabilo: ${core.code.split('').join(' ')}` }, core.code),
@@ -152,7 +213,7 @@ async function lobby(id) {
         h('h3', { style: 'margin-top:22px' }, `Detektivi v sobi (${members.length}/3)`),
         h('div', { class: 'grid', style: 'gap:10px' }, members.map(([uid, m]) => h('div', { class: 'member' }, h('span', { class: 'avatar' }, m.username[0].toUpperCase()), h('div', null, h('b', null, m.username), h('div', { class: 'muted mono', style: 'font-size:12px' }, m.badge)), h('span', { class: 'spacer' }), m.host ? h('span', { class: 'pill' }, 'Gostitelj') : null, h('span', { class: 'dot' + (presence[uid] === true ? ' on' : ''), title: presence[uid] === true ? 'Povezan' : 'Ni povezan', role: 'img', 'aria-label': presence[uid] === true ? 'Povezan' : 'Ni povezan' })))),
         err,
-        h('details', { style: 'margin-top:18px' }, h('summary', { style: 'cursor:pointer;color:var(--red-3)' }, 'Pravila in točkovanje'), h('ul', null, c.meta.rules.map((t) => h('li', null, t)))),
+        h('details', { style: 'margin-top:18px' }, h('summary', { style: 'cursor:pointer;color:var(--red-3)' }, 'Pravila in točkovanje'), h('ul', null, meta.rules.map((t) => h('li', null, t)))),
         h('div', { class: 'row', style: 'margin-top:20px' }, isHost ? startBtn : h('span', { class: 'muted' }, 'Čakamo, da gostitelj začne preiskavo …'), h('span', { class: 'spacer' }), leaveBtn)));
   }
   const unsubs = [
@@ -172,6 +233,32 @@ async function result(id) {
     if (!core) return;
     if (['lobby', 'active'].includes(core.status)) return go(`#/preiskava/${id}`);
     if (!res) return;
+    if (res.caseId === CASE2) {
+      const okk = res.success; const o = res.official || {};
+      const names2 = Object.values(res.members || {}).map((m) => `${m.username} (${m.badge})`);
+      const myB = ((res.badges || {})[S.user.uid] || '').split('|').filter(Boolean);
+      const cl = (v, l) => h('div', { class: 'stat' }, h('b', null, String(v)), h('span', null, l));
+      clear(view).append(
+        h('div', { class: 'finale ' + (okk ? 'finale--win' : 'finale--lose') },
+          h('div', { class: 'big' }, okk ? 'Primer 002 rešen' : res.outcome === 'expired' ? 'Čas je potekel' : 'Preiskava neuspešna'),
+          h('h1', null, okk ? 'VRATA SE ODPIRAJO.' : 'PRIMER OSTANE NEREŠEN.'),
+          okk ? h('div', { class: 'rank' }, res.rank) : h('span', { class: 'stamp' }, res.outcome === 'expired' ? 'ČAS JE POTEKEL' : 'NEUSPEH'),
+          !okk && res.reason ? h('p', { class: 'muted' }, res.reason) : null),
+        h('div', { class: 'card' },
+          h('div', { class: 'grid c4' }, cl(fmtDur(res.durationSec), 'Trajanje'), cl(`${res.evidenceCount}/${res.evidenceTotal}`, 'Odkrite sledi'), cl(`${res.puzzlesSolved}/${res.puzzlesTotal}`, 'Odklenjene ključavnice'), cl(res.hintsUsed, 'Namigi'),
+            cl(res.wrongAccusations, 'Napačne obtožbe'), cl(okk ? res.score : '–', 'Končna ocena (točke)'), cl(MODE_SL[res.mode] || res.mode, 'Način'), cl(OUTCOME_SL[res.outcome], 'Stanje')),
+          h('p', { style: 'margin-top:16px' }, h('b', null, 'Detektivi: '), names2.join(', ')),
+          okk ? h('p', null, h('b', null, 'Storilka: '), res.culprit) : null,
+          okk ? h('div', { style: 'margin-top:12px' }, h('b', null, 'Dosežene značke: '), myB.length ? myB.map((b) => h('span', { class: 'pill pill--ok', style: 'margin:0 6px 6px 0' }, b)) : h('span', { class: 'muted' }, 'brez novih značk')) : null),
+        h('div', { class: 'card', style: 'margin-top:16px' }, h('h2', null, 'Uradna rešitev'),
+          h('p', null, o.summary), h('p', null, h('b', null, 'Motiv: '), o.motive), h('p', null, h('b', null, 'Način: '), o.method),
+          h('h3', null, 'Časovnica'), h('ul', null, (o.timeline || []).map(([t, x]) => h('li', null, h('b', { class: 'mono' }, t), ' ', x))),
+          h('h3', null, 'Osumljenci'), (o.eliminations || []).map((e) => h('p', null, h('b', null, e.name), ': ', h('em', null, e.lies), ' ', e.why)),
+          h('h3', null, 'Zavajajoče sledi'), h('ul', null, (o.misleading || []).map((x) => h('li', null, x))), h('p', null, o.conclusion)),
+        h('div', { class: 'row', style: 'margin-top:16px' }, h('span', { class: 'spacer' }), h('a', { class: 'btn', href: '#/nadzorna-plosca' }, 'Nazaj na nadzorno ploščo')));
+      if (!draw.once) { draw.once = true; (okk ? sound.win() : sound.lose()); }
+      return;
+    }
     const ok = res.success;
     const names = Object.values(res.members || {}).map((m) => `${m.username} (${m.badge})`);
     const myBadges = ((res.badges || {})[S.user.uid] || '').split('|').filter(Boolean);

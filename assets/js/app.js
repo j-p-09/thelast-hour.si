@@ -1,9 +1,10 @@
 // Glavna aplikacija igralca: zagon, stanje prijave, usmerjevalnik.
-import { initFirebase, state as fb, onAuth, watch, signOutUser } from './backend.js';
+import { initFirebase, state as fb, onAuth, watch, signOutUser, getOnce } from './backend.js';
 import { h, clear, icon, logo, sound, soundSettings, toast, spinner } from './ui.js';
 import { screens } from './screens-public.js';
 import { playerScreens } from './screens-player.js';
 import { roomScreen } from './investigation.js';
+import { room3dScreen } from './room3d.js';
 
 export const S = { user: null, profile: null, profileLoaded: false, activeId: null, cleanup: [], caseData: null };
 const root = document.getElementById('app');
@@ -60,7 +61,7 @@ const ROUTES = [
   { re: /^\/nadzorna-plosca$/, auth: 'approved', fn: () => playerScreens.dashboard() },
   { re: /^\/profil$/, auth: 'approved', fn: () => playerScreens.profile() },
   { re: /^\/lobby\/([-\w]+)$/, auth: 'approved', fn: (m) => playerScreens.lobby(m[1]) },
-  { re: /^\/preiskava\/([-\w]+)$/, auth: 'approved', fn: (m) => roomScreen(m[1]) },
+  { re: /^\/preiskava\/([-\w]+)$/, auth: 'approved', fn: async (m) => { let core = null; try { core = await getOnce(`investigations/${m[1]}/core`); } catch (_) { /* privzeto: primer 001 */ } return core && core.caseId === 'PRIMER-002' ? room3dScreen(m[1]) : roomScreen(m[1]); } },
   { re: /^\/rezultat\/([-\w]+)$/, auth: 'approved', fn: (m) => playerScreens.result(m[1]) },
 ];
 
