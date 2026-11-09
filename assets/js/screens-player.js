@@ -1,7 +1,7 @@
 // Zasloni igralca: nadzorna plošča, profil, čakalnica, rezultat.
 import { shell, go, S, loadCase } from './app.js';
 import { h, clear, icon, busyButton, toast, modal, confirmBox, sound, spinner, copyText, download, b64ToBlob, fmtDate, fmtDateTime, fmtDur, STATUS_SL, OUTCOME_SL, MODE_SL, rankFor, plural } from './ui.js';
-import { call, watch, startPresence, stopPresence, changePassword } from './backend.js';
+import { call, watch, getOnce, startPresence, stopPresence, changePassword } from './backend.js';
 import { CASE2_META } from './room3d-data.js';
 
 const BADGES = [
@@ -47,6 +47,12 @@ function storedCode(caseId, category) {
   return hit ? hit[0] : null;
 }
 
+// Primer je odklenjen za vedno, ko je uporabnik vpisal veljavno kodo (ali ga je že igral).
+function unlockedCase(caseId, rows) {
+  const acc = ((S.profile && S.profile.access) || {})[caseId];
+  return !!((acc && Object.keys(acc).length) || caseRows(rows, caseId).length);
+}
+
 async function dashboard() {
   const c = await loadCase();
   const body = h('div', { class: 'page' });
@@ -75,9 +81,9 @@ async function dashboard() {
 
   async function startSolo(caseId) {
     err.hidden = true;
-    let accessCode = storedCode(caseId, 'solo');
+    let accessCode = null;
     const meta = caseId === CASE2 ? CASE2_META : c.meta;
-    if (!accessCode) { accessCode = await confirmStart(meta, 'solo', caseId); if (!accessCode) return; }
+    if (!unlockedCase(caseId, rows)) { accessCode = await confirmStart(meta, 'solo', caseId); if (!accessCode) return; }
     try {
       const r = await call('createInvestigation', { solo: true, accessCode, caseId });
       if (!r.resumed || r.status === 'lobby') await call('startInvestigation', { id: r.id, accessCode });
@@ -105,15 +111,14 @@ async function dashboard() {
     const done1 = caseRows(rows, CASE1), done2 = caseRows(rows, CASE2);
     const solved1 = done1.some((r) => r.outcome === 'success'), solved2 = done2.some((r) => r.outcome === 'success');
     const concl1 = done1.some((r) => r.outcome !== 'aborted');
-    const acc1 = ((S.profile && S.profile.access) || {})[CASE1], acc2 = ((S.profile && S.profile.access) || {})[CASE2];
-    const s1 = solved1 ? { label: 'Rešen', kind: 'ok', note: 'Primer ste že rešili. Lahko ga ponovite.', canPlay: true }
-      : concl1 ? { label: 'Zaključen, nerešen', kind: 'warn', note: acc1 ? 'Imate odklenjeno kodo.' : 'Za novo preiskavo vnesite kodo ali jo vpišite ob začetku.', canPlay: true }
-        : { label: acc1 ? 'Odklenjen' : 'Čaka na kodo', kind: acc1 ? 'ok' : 'warn', note: acc1 ? null : 'Kodo vnesite zgoraj ali jo vpišite ob začetku preiskave.', canPlay: true };
+    const acc1 = unlockedCase(CASE1, rows), acc2 = unlockedCase(CASE2, rows);
+    const s1 = solved1 ? { label: 'Rešen', kind: 'ok', note: 'Primer je odklenjen za vedno. Lahko ga ponovite.', canPlay: true }
+      : concl1 ? { label: 'Zaključen, nerešen', kind: 'warn', note: 'Primer je odklenjen za vedno. Kode ne potrebujete več.', canPlay: true }
+        : acc1 ? { label: 'Odklenjen', kind: 'ok', note: 'Koda ni več potrebna.', canPlay: true }
+          : { label: 'Čaka na kodo', kind: 'warn', note: 'Kodo vnesite zgoraj ali jo vpišite ob začetku preiskave.', canPlay: true };
     const s2 = !concl1 ? { label: 'Zaklenjen', kind: 'bad', note: 'Odklene se šele po zaključenem Primeru 001 in z veljavno kodo za Primer 002.', canPlay: false }
-      : solved2 ? { label: 'Rešen', kind: 'ok', note: 'Primer ste že rešili.', canPlay: !!acc2 || true }
-        : done2.length && !acc2 ? { label: 'Zaključen, nerešen', kind: 'warn', note: 'Za novo preiskavo vnesite kodo za Primer 002.', canPlay: !!acc2 }
-          : acc2 ? { label: 'Odklenjen', kind: 'ok', note: null, canPlay: true } : { label: 'Čaka na kodo', kind: 'warn', note: 'Vnesite kodo za Primer 002 zgoraj.', canPlay: false };
-    if (solved2 && !acc2) s2.canPlay = false, s2.note = 'Rešen. Za ponovitev vnesite kodo za Primer 002.';
+      : acc2 ? { label: solved2 ? 'Rešen' : 'Odklenjen', kind: 'ok', note: solved2 ? 'Primer je odklenjen za vedno. Lahko ga ponovite.' : 'Koda ni več potrebna.', canPlay: true }
+        : { label: 'Čaka na kodo', kind: 'warn', note: 'Vnesite kodo za Primer 002 zgoraj.', canPlay: false };
     clear(casesBox).append(caseCard('001', CASE1, c.meta, s1), caseCard('002', CASE2, CASE2_META, s2));
   }
 
@@ -200,8 +205,13 @@ async function lobby(id) {
     const caseId = core.caseId || CASE1; const meta = caseId === CASE2 ? CASE2_META : c.meta;
     const startBtn = busyButton(h('button', { class: 'btn primary' }, 'Začni preiskavo'), async () => {
       const cat = members.length === 1 ? 'solo' : 'group';
-      const accessCode = storedCode(caseId, cat) || await confirmStart(meta, cat, caseId); if (!accessCode) return;
-      try { await call('startInvestigation', { id, accessCode }); } catch (e) { showErr(e.message); }
+      let accessCode = null;
+      const me = unlockedCase(caseId, await getOnce(`userInvestigations/${S.user.uid}`).catch(() => ({})));
+      if (!me) { accessCode = await confirmStart(meta, cat, caseId); if (!accessCode) return; }
+      try { await call('startInvestigation', { id, accessCode }); } catch (e) {
+        if (!accessCode && /kod/i.test(e.message)) { const c2 = await confirmStart(meta, cat, caseId); if (c2) { try { await call('startInvestigation', { id, accessCode: c2 }); return; } catch (e2) { showErr(e2.message); return; } } }
+        showErr(e.message);
+      }
     });
     const leaveBtn = busyButton(h('button', { class: 'btn ghost' }, 'Zapusti sobo'), async () => { try { await call('leaveInvestigation', { id }); } catch (e) { /* nič */ } go('#/nadzorna-plosca'); });
     clear(view).append(
