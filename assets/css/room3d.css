@@ -47,3 +47,11 @@
 
 .r3__canvas { position: absolute; inset: 0; }
 .r3__fail { position: absolute; left: 12px; right: 12px; top: 80px; padding: 14px; background: #3a1216; border: 1px solid #a33; border-radius: 10px; color: #fff; z-index: 6; }
+
+.r3__dlg--av { max-width: 640px; }
+.r3__avgrid { display: grid; grid-template-columns: 240px 1fr; gap: 16px; margin: 10px 0; }
+.r3__prev { width: 240px; height: 360px; border-radius: 12px; border: 1px solid #2c333d; }
+.r3__sw { display: flex; flex-wrap: wrap; gap: 6px; }
+.r3__swatch { width: 28px; height: 28px; border-radius: 50%; border: 2px solid rgba(255,255,255,.25); cursor: pointer; }
+.r3__swatch.on { border-color: #ffd38a; box-shadow: 0 0 0 2px rgba(255,211,138,.4); }
+@media (max-width: 640px) { .r3__avgrid { grid-template-columns: 1fr; } .r3__prev { width: 100%; height: auto; max-width: 240px; margin: 0 auto; } }
