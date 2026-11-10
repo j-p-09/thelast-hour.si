@@ -10,7 +10,7 @@ export const OBJECT_LABELS = {
 
 export function buildScene() {
   const boxes = [];
-  const B = (id, obj, min, max, color, o = {}) => { boxes.push({ id, obj, min, max, color, ...o }); };
+  const B = (id, obj, min, max, color, o = {}) => { boxes.push({ id, obj, min, max, color, ...(obj ? {} : { noPick: true }), ...o }); };
   const wood = '#5a3a22', dark = '#2a1b12';
 
   // ---- vrata (južna stena) ----
@@ -60,7 +60,7 @@ export function buildScene() {
 
   // ---- knjižna omara + lestev ----
   const spines = ['#7a2323', '#2b4a6b', '#3e5f3a', '#8a6a2a', '#4a2c5a', '#a55a2a', '#2a5f5f', '#6b6b6b'];
-  B('books', 'bookcase', [-3.95, 0, -3.0], [-2.5, 2.6, -2.55], '#3f2a1a', { decals: { '+z': { draw(g, { L }) {
+  B('books', null, [-3.95, 0, -3.0], [-2.5, 2.6, -2.55], '#3f2a1a', { decals: { '+z': { draw(g, { L }) {
     for (let r = 0; r < 5; r++) { const y = 10 + r * 50; g.fillStyle = sh('#2a1a10', L); g.fillRect(4, y + 40, 137, 5);
       let x = 6; let i = r * 7; while (x < 134) { const w = 5 + ((i * 3) % 5), hh = 28 + ((i * 7) % 12); g.fillStyle = sh(spines[(i + r) % spines.length], L); g.fillRect(x, y + 40 - hh, w, hh); x += w + 0.6; i++; } }
   } } } });
@@ -80,18 +80,18 @@ export function buildScene() {
 
   // ---- barska omarica (vzhodna stena, jug) ----
   B('bar', 'bar', [3.5, 0, 0.6], [4.0, 1.05, 2.4], '#4a2f1c', { decals: { '-x': { draw(g, { L }) { g.fillStyle = sh('#352010', L); g.fillRect(8, 8, 76, 88); g.fillRect(96, 8, 76, 88); g.fillStyle = sh('#bfa05a', L); g.fillRect(80, 48, 3, 14); g.fillRect(97, 48, 3, 14); } } }, top: '#2a1a10' });
-  B('decanter', 'bar', [3.62, 1.05, 1.25], [3.8, 1.42, 1.43], '#6aa0b0', { on: 'bar', solid: false, emissive: 0.1 });
-  B('glass1', 'bar', [3.64, 1.05, 1.7], [3.72, 1.17, 1.78], '#9ac0cc', { on: 'bar', solid: false });
-  B('glass2', 'bar', [3.64, 1.05, 1.95], [3.72, 1.17, 2.03], '#9ac0cc', { on: 'bar', solid: false });
+  B('decanter', null, [3.62, 1.05, 1.25], [3.8, 1.42, 1.43], '#6aa0b0', { on: 'bar', solid: false, emissive: 0.1 });
+  B('glass1', null, [3.64, 1.05, 1.7], [3.72, 1.17, 1.78], '#9ac0cc', { on: 'bar', solid: false });
+  B('glass2', null, [3.64, 1.05, 1.95], [3.72, 1.17, 2.03], '#9ac0cc', { on: 'bar', solid: false });
   B('bar_pick', 'bar', [3.5, 1.05, 1.0], [4.0, 1.5, 2.3], '#000', { ghost: true, solid: false });
 
   // ---- okno + zavesi (zahodna stena) ----
-  B('win', 'window', [-4.0, 0.95, -1.0], [-3.95, 2.55, 1.0], '#26364f', { solid: false, emissive: 0.45, decals: { '+x': { draw(g, { L }) {
+  B('win', null, [-4.0, 0.95, -1.0], [-3.95, 2.55, 1.0], '#26364f', { solid: false, noPick: true, emissive: 0.45, decals: { '+x': { draw(g, { L }) {
     g.fillStyle = '#1b2a44'; g.fillRect(0, 0, 200, 160); g.fillStyle = '#e9efff'; g.beginPath(); g.arc(150, 38, 12, 0, 7); g.fill(); g.fillStyle = 'rgba(10,20,40,.7)'; g.fillRect(0, 110, 200, 50);
     g.strokeStyle = sh('#3a2616', 1.2); g.lineWidth = 5; g.strokeRect(2, 2, 196, 156); g.beginPath(); g.moveTo(100, 0); g.lineTo(100, 160); g.moveTo(0, 80); g.lineTo(200, 80); g.stroke();
   } } } });
-  B('curt1', 'window', [-3.95, 0.2, -1.5], [-3.7, 2.9, -1.0], '#6a1f28', { solid: false }); B('curt2', 'window', [-3.95, 0.2, 1.0], [-3.7, 2.9, 1.5], '#6a1f28', { solid: false });
-  B('rod', 'window', [-3.95, 2.9, -1.55], [-3.85, 2.96, 1.55], '#b8963c', { solid: false, noPick: true });
+  B('curt1', null, [-3.95, 0.2, -1.5], [-3.7, 2.9, -1.0], '#6a1f28', { solid: false, noPick: true }); B('curt2', null, [-3.95, 0.2, 1.0], [-3.7, 2.9, 1.5], '#6a1f28', { solid: false, noPick: true });
+  B('rod', null, [-3.95, 2.9, -1.55], [-3.85, 2.96, 1.55], '#b8963c', { solid: false, noPick: true });
 
   // ---- radio na omarici ----
   B('cab', 'radio', [-3.95, 0, -2.2], [-3.45, 0.72, -1.5], '#4a3020');
@@ -137,8 +137,8 @@ export function buildScene() {
     g.fillStyle = ok ? '#bfe0ff' : '#8aa0b8'; if (ok) { for (let i = 0; i < 4; i++) g.fillRect(5, 6 + i * 5, 28 - i * 3, 2); } else { g.fillRect(12, 12, 22, 5); g.fillStyle = '#ffdc60'; g.fillRect(14, 13, 5 + ((t * 4) % 3) * 3, 3); }
   } } } });
   B('phone', 'phone', [1.6, 0.76, 0.45], [1.9, 0.85, 0.7], '#1c1c1f', { on: 'desk', solid: false, decals: { '+y': { draw(g) { g.fillStyle = '#7ad07a'; g.fillRect(8, 4, 14, 6); } } } });
-  B('lamp_b', 'lamp', [2.05, 0.76, 0.3], [2.3, 0.82, 0.55], '#b8963c', { on: 'desk', solid: false }); B('lamp_s', 'lamp', [2.14, 0.82, 0.38], [2.2, 1.2, 0.46], '#b8963c', { on: 'desk', solid: false });
-  B('lamp_h', 'lamp', [2.0, 1.2, 0.28], [2.36, 1.38, 0.56], '#2a6a3a', { on: 'desk', solid: false, emissive: 0.5 });
+  B('lamp_b', null, [2.05, 0.76, 0.3], [2.3, 0.82, 0.55], '#b8963c', { on: 'desk', solid: false }); B('lamp_s', null, [2.14, 0.82, 0.38], [2.2, 1.2, 0.46], '#b8963c', { on: 'desk', solid: false });
+  B('lamp_h', null, [2.0, 1.2, 0.28], [2.36, 1.38, 0.56], '#2a6a3a', { on: 'desk', solid: false, emissive: 0.5 });
   B('basket', 'wastebasket', [2.7, 0, 0.4], [3.05, 0.42, 0.75], '#8a6a3a', { decals: { '+y': { draw(g) { g.fillStyle = '#e8e4d8'; g.fillRect(4, 3, 8, 6); g.fillRect(14, 8, 7, 7); } } } });
 
   // ---- fotelj in mizica pri kaminu ----
@@ -152,14 +152,37 @@ export function buildScene() {
 
   // ---- globus, šah, preproga ----
   B('rug', null, [-2.4, 0, -1.0], [1.3, 0.015, 0.1], '#7a2a2a', { solid: false, noPick: true, bias: 100, decals: { '+y': { draw(g) { g.strokeStyle = 'rgba(220,190,120,.7)'; g.lineWidth = 3; g.strokeRect(10, 10, 345, 90); g.strokeRect(22, 22, 321, 66); } } } });
-  B('globe_s', 'globe', [-3.55, 0, -0.3], [-3.3, 0.9, -0.05], '#3a2616'); B('globe_b', 'globe', [-3.6, 0.9, -0.35], [-3.25, 1.25, 0.0], '#3a6a8a');
-  B('chess_t', 'chess', [-3.0, 0, 0.55], [-2.4, 0.62, 1.15], '#3a2616', { decals: { '+y': { draw(g) { for (let i = 0; i < 8; i++) for (let j = 0; j < 8; j++) { g.fillStyle = (i + j) % 2 ? '#2a1a10' : '#d8c8a0'; g.fillRect(6 + i * 6, 6 + j * 6, 6, 6); } g.fillStyle = '#f0f0f0'; g.fillRect(24, 24, 5, 5); g.fillStyle = '#111'; g.fillRect(36, 30, 5, 5); } } } });
+  B('globe_s', null, [-3.55, 0, -0.3], [-3.3, 0.9, -0.05], '#3a2616'); B('globe_b', null, [-3.6, 0.9, -0.35], [-3.25, 1.25, 0.0], '#3a6a8a');
+  B('chess_t', null, [-3.0, 0, 0.55], [-2.4, 0.62, 1.15], '#3a2616', { decals: { '+y': { draw(g) { for (let i = 0; i < 8; i++) for (let j = 0; j < 8; j++) { g.fillStyle = (i + j) % 2 ? '#2a1a10' : '#d8c8a0'; g.fillRect(6 + i * 6, 6 + j * 6, 6, 6); } g.fillStyle = '#f0f0f0'; g.fillRect(24, 24, 5, 5); g.fillStyle = '#111'; g.fillRect(36, 30, 5, 5); } } } });
+
+  // ---- dodatna oprema za večjo sobo (samo okras: ni klikljiva) ----
+  B('sofa_b', null, [1.6, 0, 3.0], [4.4, 0.45, 3.85], '#3d4a3a'); B('sofa_k', null, [1.6, 0.45, 3.7], [4.4, 1.0, 3.85], '#3d4a3a');
+  B('sofa_l', null, [1.45, 0, 3.0], [1.6, 0.7, 3.85], '#34402f'); B('sofa_r', null, [4.4, 0, 3.0], [4.55, 0.7, 3.85], '#34402f');
+  B('ctable', null, [2.2, 0, 1.8], [3.8, 0.42, 2.5], '#4a2f1c', { top: '#2a1a10' });
+  B('ctable_book', null, [2.6, 0.42, 2.0], [2.95, 0.45, 2.3], '#7a2a2a', { on: 'ctable', solid: false });
+  B('flamp_p', null, [4.7, 0, 2.5], [4.78, 1.55, 2.58], '#b8963c', { solid: false }); B('flamp_s', null, [4.58, 1.55, 2.38], [4.9, 1.85, 2.7], '#f0dca8', { solid: false, emissive: 0.8 });
+  B('cons', null, [3.4, 0, -3.9], [5.3, 0.85, -3.45], '#3f2a1a', { top: '#2a1a10' });
+  B('vase', null, [4.1, 0.85, -3.8], [4.4, 1.15, -3.55], '#2f5f6a', { on: 'cons', solid: false });
+  B('plant', null, [-5.2, 0, 3.2], [-4.7, 0.5, 3.7], '#6a4a2a'); B('plant_l', null, [-5.25, 0.5, 3.15], [-4.65, 1.5, 3.75], '#2f6a3a', { solid: false });
+
+  // ---- razporeditev po steni (soba je večja: 11 × 8 m) ----
+  const MOVE = [
+    [['fp', 'fp_mantel', 'fp_breast', 'fp_uv', 'det', 'det_pick', 'safe', 'paint', 'arm_seat', 'arm_back', 'arm_l', 'arm_r', 'arm_watch', 'arm_pick', 'stable', 'pillbox', 'glasses'], 0, -1],
+    [['books', 'ladder'], -1.5, -1],
+    [['wcase', 'bar', 'decanter', 'glass1', 'glass2', 'bar_pick'], 1.5, 0],
+    [['win', 'curt1', 'curt2', 'rod', 'cab', 'radio', 'card', 'clock', 'globe_s', 'globe_b'], -1.5, 0],
+    [['door', 'door_f', 'door_f2', 'door_f3', 'photos', 'cal'], 0, 1],
+  ];
+  for (const [ids, dx, dz] of MOVE) for (const b of boxes) if (ids.includes(b.id)) { b.min = [b.min[0] + dx, b.min[1], b.min[2] + dz]; b.max = [b.max[0] + dx, b.max[1], b.max[2] + dz]; if (b.off) { const o = b.off; b.off = (st) => o(st); } }
 
   const lights = [
-    { pos: [2.17, 1.25, 0.42], color: [1.0, 0.78, 0.45], intensity: 1.25, range: 6.5 },
-    { pos: [0, 0.7, -2.2], color: [1.0, 0.5, 0.2], intensity: 0.9, range: 5.0 },
-    { pos: [-3.4, 2.0, 0.0], color: [0.45, 0.6, 1.0], intensity: 0.7, range: 6.5 },
-    { pos: [0, 3.0, 0.0], color: [1.0, 0.85, 0.65], intensity: 0.4, range: 9 },
+    { name: 'desk', pos: [2.17, 1.25, 0.42], color: [1.0, 0.78, 0.45], intensity: 1.25, range: 6.5 },
+    { name: 'fire', pos: [0, 0.7, -3.2], color: [1.0, 0.5, 0.2], intensity: 0.9, range: 5.0 },
+    { name: 'moon', pos: [-4.9, 2.0, 0.0], color: [0.45, 0.6, 1.0], intensity: 0.7, range: 7.5 },
+    { name: 'ceil', pos: [0, 3.0, 0.0], color: [1.0, 0.85, 0.65], intensity: 0.4, range: 9 },
+    { name: 'ceil2', pos: [-3.5, 3.0, 2.0], color: [1.0, 0.85, 0.65], intensity: 0.3, range: 8 },
+    { name: 'ceil3', pos: [3.5, 3.0, -2.0], color: [1.0, 0.85, 0.65], intensity: 0.3, range: 8 },
+    { name: 'floor', pos: [4.74, 1.6, 2.54], color: [1.0, 0.8, 0.5], intensity: 0.9, range: 5.5 },
   ];
-  return { room: { w: 8, d: 6, h: 3.2, floor: '#6a4a30', wall: '#7b4343', wainscot: '#3a2418', ceiling: '#a89f8e' }, boxes, lights, ambient: 0.5, spawn: { x: -2.0, z: 1.8, yaw: 0.75 } };
+  return { room: { w: 11, d: 8, h: 3.2, floor: '#6a4a30', wall: '#7b4343', wainscot: '#3a2418', ceiling: '#a89f8e' }, boxes, lights, ambient: 0.5, spawn: { x: -2.6, z: 2.9, yaw: 0.5 } };
 }

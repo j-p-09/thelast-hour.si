@@ -1,5 +1,7 @@
 // Realistični prikaz sobe (three.js): fizikalni materiali, mehke sence, procedurne teksture, svetloba kamina in svetilke.
 // Knjižnica se naloži šele, ko igralec izbere »realistično«. Če nalaganje ne uspe, igra ostane na lahki različici.
+import { buildAvatar3D } from './room3d-avatar.js';
+
 const CDNS = [
   'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.min.js',
   'https://unpkg.com/three@0.160.0/build/three.module.min.js',
@@ -67,7 +69,7 @@ export async function createRealEngine(canvas, scene, opts = {}) {
       const tg = tile.getContext('2d'); tg.fillStyle = 'rgba(0,0,0,.55)'; tg.fillRect(0, 0, 2, 1024); tg.fillRect(0, (r() * 900) | 0, pw, 2);
       g.drawImage(tile, i * pw, 0);
     }
-    return toTex(c, 3, 3);
+    return toTex(c, scene.room.w / 2.67, scene.room.d / 2.67);
   })();
   const wallMap = (() => {
     const c = mkCanvas(256, 256), g = c.getContext('2d'); g.fillStyle = '#7a3a3e'; g.fillRect(0, 0, 256, 256);
@@ -93,10 +95,10 @@ export async function createRealEngine(canvas, scene, opts = {}) {
   const cat = (b) => {
     const id = b.id || '';
     if (/^(decanter|glass)/.test(id)) return 'glass';
-    if (/^arm_/.test(id)) return 'leather';
+    if (/^(arm_|sofa)/.test(id)) return 'leather';
     if (/^(fp$|fp_breast)/.test(id)) return 'stone';
     if (/^(lamp_b|lamp_s|det|door_knob)/.test(id)) return 'metal';
-    if (/^(desk|books|door|door_f|cab|clock|chair|stable|basket|chess_t|globe_s|fp_mantel|ladder|wcase|bar|paint|photos|cal|card|rod|safe)/.test(id)) return 'wood';
+    if (/^(desk|ctable|cons|books|door|door_f|cab|clock|chair|stable|basket|chess_t|globe_s|fp_mantel|ladder|wcase|bar|paint|photos|cal|card|rod|safe)/.test(id)) return 'wood';
     if (/^rug/.test(id)) return 'rug';
     return 'paint';
   };
@@ -174,22 +176,27 @@ export async function createRealEngine(canvas, scene, opts = {}) {
   // namizna svetilka (zaobljeno stojalo) namesto škatel
   const brass = std({ color: 0xc9a24a, roughness: 0.25, metalness: 0.9 });
   const lathe = (pts, mat, x, y, z) => { const g = new T.LatheGeometry(pts.map((p) => new T.Vector2(p[0], p[1])), 28); const m = add(g, mat, x, y, z, false); return m; };
+  const BX = (id) => scene.boxes.find((q) => q.id === id) || { min: [0, 0, 0], max: [0, 0, 0] };
+  const cen = (id) => { const q = BX(id); return [(q.min[0] + q.max[0]) / 2, (q.min[1] + q.max[1]) / 2, (q.min[2] + q.max[2]) / 2, q.min[1]]; };
+  const LT = (n) => (scene.lights || []).find((l) => l.name === n);
   lathe([[0, 0], [0.11, 0], [0.11, 0.015], [0.03, 0.04], [0.02, 0.2], [0.035, 0.24], [0, 0.245]], brass, 2.17, 0.82, 0.42);
   // karafa in kozarci (zaobljeni)
   const glassMat = new T.MeshPhysicalMaterial({ color: 0xcfe6ee, roughness: 0.03, transparent: true, opacity: 0.4, clearcoat: 1 });
   const whisky = std({ color: 0xb4621c, roughness: 0.2, transparent: true, opacity: 0.75 });
-  lathe([[0, 0], [0.065, 0], [0.075, 0.05], [0.06, 0.17], [0.025, 0.24], [0.03, 0.3], [0.02, 0.31]], glassMat, 3.71, 1.05, 1.34);
-  lathe([[0, 0], [0.056, 0.001], [0.066, 0.045], [0.04, 0.17], [0.02, 0.2]], whisky, 3.71, 1.051, 1.34);
-  for (const zz of [1.74, 1.99]) { lathe([[0, 0], [0.03, 0], [0.034, 0.05], [0.04, 0.1]], glassMat, 3.68, 1.05, zz); }
+  { const c = cen('decanter'); lathe([[0, 0], [0.065, 0], [0.075, 0.05], [0.06, 0.17], [0.025, 0.24], [0.03, 0.3], [0.02, 0.31]], glassMat, c[0], c[3], c[2]);
+    lathe([[0, 0], [0.056, 0.001], [0.066, 0.045], [0.04, 0.17], [0.02, 0.2]], whisky, c[0], c[3] + 0.001, c[2]); }
+  for (const id of ['glass1', 'glass2']) { const c = cen(id); lathe([[0, 0], [0.03, 0], [0.034, 0.05], [0.04, 0.1]], glassMat, c[0], c[3], c[2]); }
   // globus
-  const globe = add(new T.SphereGeometry(0.17, 32, 24), std({ color: 0x3f6f95, roughness: 0.45 }), -3.42, 1.1, -0.18, true);
-  add(new T.TorusGeometry(0.19, 0.008, 8, 40), brass, -3.42, 1.1, -0.18, false).rotation.set(0.4, 0.6, 0);
+  const gc = cen('globe_b');
+  add(new T.SphereGeometry(0.17, 32, 24), std({ color: 0x3f6f95, roughness: 0.45 }), gc[0], gc[1], gc[2], true);
+  add(new T.TorusGeometry(0.19, 0.008, 8, 40), brass, gc[0], gc[1], gc[2], false).rotation.set(0.4, 0.6, 0);
   // zavese z gubami
   const curtMat = std({ color: 0x7a1f2b, roughness: 0.9 });
-  for (const zc of [-1.25, 1.25]) {
+  for (const cid of ['curt1', 'curt2']) {
+    const cc = cen(cid);
     const g = new T.PlaneGeometry(0.5, 2.75, 24, 1); const p = g.attributes.position;
     for (let i = 0; i < p.count; i++) p.setZ(i, Math.sin(p.getX(i) * 34) * 0.045);
-    g.computeVertexNormals(); const m = add(g, curtMat, -3.82, 1.55, zc, true, Math.PI / 2); m.material.side = T.DoubleSide;
+    g.computeVertexNormals(); const m = add(g, curtMat, cc[0] + 0.1, cc[1], cc[2], true, Math.PI / 2); m.material.side = T.DoubleSide;
   }
   // prah v žarku svetilke
   const dustN = 160, dustGeo = new T.BufferGeometry(), dp = new Float32Array(dustN * 3), dr = rnd(91);
@@ -198,12 +205,14 @@ export async function createRealEngine(canvas, scene, opts = {}) {
   const dust = new T.Points(dustGeo, new T.PointsMaterial({ color: 0xffe6b8, size: 0.012, transparent: true, opacity: 0.5, depthWrite: false })); sc.add(dust);
 
   // ---------- luči ----------
+  const lamps2 = [];
   const hemi = new T.HemisphereLight(0x7f8fbe, 0x4a3020, 0.8); sc.add(hemi);
-  const lamp = new T.PointLight(0xffc27a, 7.5, 0, 2); lamp.position.set(2.17, 1.18, 0.42); lamp.castShadow = true; lamp.shadow.mapSize.set(1024, 1024); lamp.shadow.bias = -0.002; lamp.shadow.radius = 4; sc.add(lamp);
-  const fire = new T.PointLight(0xff7a2a, 8, 0, 2); fire.position.set(0, 0.55, -2.25); sc.add(fire);
+  const lamp = new T.PointLight(0xffc27a, 7.5, 0, 2); lamp.position.set(...(LT('desk') ? [LT('desk').pos[0], LT('desk').pos[1] - 0.07, LT('desk').pos[2]] : [2.17, 1.18, 0.42])); lamp.castShadow = true; lamp.shadow.mapSize.set(1024, 1024); lamp.shadow.bias = -0.002; lamp.shadow.radius = 4; sc.add(lamp);
+  const fire = new T.PointLight(0xff7a2a, 8, 0, 2); fire.position.set(...(LT('fire') ? [LT('fire').pos[0], LT('fire').pos[1] - 0.15, LT('fire').pos[2] + 0.35] : [0, 0.55, -2.25])); sc.add(fire);
   const ceil = new T.PointLight(0xffe2b0, 9, 0, 2); ceil.position.set(0, RH - 0.5, 0); ceil.castShadow = true; ceil.shadow.mapSize.set(512, 512); ceil.shadow.bias = -0.003; sc.add(ceil);
-  const moon = new T.DirectionalLight(0x8aa6ff, 1.4); moon.position.set(-8, 4, 0.2); moon.target.position.set(0, 0.8, 0); moon.castShadow = true; moon.shadow.mapSize.set(1024, 1024);
-  moon.shadow.camera.left = -6; moon.shadow.camera.right = 6; moon.shadow.camera.top = 5; moon.shadow.camera.bottom = -5; moon.shadow.camera.far = 20; sc.add(moon); sc.add(moon.target);
+  const moon = new T.DirectionalLight(0x8aa6ff, 1.4); { const mp = LT('moon') ? LT('moon').pos : [-4.9, 2, 0]; const v = [mp[0], mp[1] - 0.8, mp[2]]; const l = Math.hypot(...v) || 1; moon.position.set(v[0] / l * 14, 0.8 + v[1] / l * 14 + 2, v[2] / l * 14); } moon.target.position.set(0, 0.8, 0); moon.castShadow = true; moon.shadow.mapSize.set(1024, 1024);
+  moon.shadow.camera.left = -8; moon.shadow.camera.right = 8; moon.shadow.camera.top = 7; moon.shadow.camera.bottom = -7; moon.shadow.camera.far = 30; sc.add(moon); sc.add(moon.target);
+  for (const n of ['ceil2', 'ceil3', 'floor']) { const L = LT(n); if (L) { const pl = new T.PointLight(n === 'floor' ? 0xffc88a : 0xffe2b0, n === 'floor' ? 4 : 5, 0, 2); pl.position.set(...L.pos); sc.add(pl); lamps2.push([pl, n === 'floor' ? 4 : 5]); } }
   const spot = new T.SpotLight(0xfff0d8, 0, 16, 0.5, 0.65, 1.5); spot.position.set(0, 0, 0); spot.target.position.set(0, 0, -1); camera.add(spot); camera.add(spot.target);
   const uvLight = new T.SpotLight(0x8a4cff, 0, 14, 0.55, 0.5, 1.2); camera.add(uvLight); uvLight.target.position.set(0, 0, -1); camera.add(uvLight.target);
 
@@ -265,14 +274,41 @@ export async function createRealEngine(canvas, scene, opts = {}) {
     ndc.set((sx / S.W) * 2 - 1, -(sy / S.H) * 2 + 1); ray.setFromCamera(ndc, camera);
     const live = pickables.filter((m) => !hidden(m.userData.b));
     const hits = ray.intersectObjects(live, false);
-    for (const h of hits) { const b = h.object.userData.b; if (b.ghost && !b.obj) continue; if (!b.obj || h.distance > 12) return null; return { obj: b.obj, dist: h.distance }; }
-    return null;
+    let ghostHit = null;
+    for (const h of hits) {
+      const b = h.object.userData.b; if (!b.obj) continue;
+      if (b.ghost) { if (!ghostHit) ghostHit = h; continue; }
+      return h.distance > 12 ? null : { obj: b.obj, dist: h.distance };
+    }
+    return ghostHit && ghostHit.distance <= 12 ? { obj: ghostHit.object.userData.b.obj, dist: ghostHit.distance } : null;
   }
   function setHover(o) {
     if (o === S.hover) return;
     for (const list of objMeshes.values()) for (const m of list) for (const mt of [].concat(m.material)) if (mt.emissive && !m.userData.b.emissive) { mt.emissive.setHex(0x000000); }
     S.hover = o;
     if (o) for (const m of objMeshes.get(o) || []) for (const mt of [].concat(m.material)) if (mt.emissive && !m.userData.b.ghost) { mt.emissive.setHex(0x4a3208); }
+  }
+
+  // ---------- soigralci ----------
+  const peers = new Map();
+  function setPeers(list) {
+    const seen = new Set();
+    for (const p of list) {
+      seen.add(p.uid); const key = JSON.stringify(p.av || {}) + '|' + p.name; let q = peers.get(p.uid);
+      if (!q || q.key !== key) { if (q && q.g) sc.remove(q.g); let g = null; try { g = buildAvatar3D(T, p.av, p.name); sc.add(g); } catch (e) { console.error('Figura', e); } q = { g, x: p.x, z: p.z, tx: p.x, tz: p.z, yaw: p.yaw, ty: p.yaw, phase: Math.random() * 6, key, walk: 0 }; peers.set(p.uid, q); }
+      q.tx = p.x; q.tz = p.z; q.ty = p.yaw;
+    }
+    for (const [k, q] of [...peers]) if (!seen.has(k)) { if (q.g) sc.remove(q.g); peers.delete(k); }
+  }
+  function updatePeers(dt) {
+    for (const q of peers.values()) {
+      if (!q.g) continue;
+      const dx = q.tx - q.x, dz = q.tz - q.z, d = Math.hypot(dx, dz), k = Math.min(1, dt * 2.6); q.x += dx * k; q.z += dz * k;
+      let dy = q.ty - q.yaw; while (dy > Math.PI) dy -= 2 * Math.PI; while (dy < -Math.PI) dy += 2 * Math.PI; q.yaw += dy * Math.min(1, dt * 5);
+      q.walk = d > 0.06 ? 1 : 0; q.phase += dt * 7 * q.walk;
+      q.g.position.set(q.x, 0, q.z); q.g.rotation.y = Math.PI - q.yaw;
+      const pr = q.g.userData.parts; if (pr) { const sw = Math.sin(q.phase) * 0.6 * q.walk; pr.legs[0].rotation.x = sw; pr.legs[1].rotation.x = -sw; pr.arms[0].rotation.x = -sw * 0.8; pr.arms[1].rotation.x = sw * 0.8; }
+    }
   }
 
   // ---------- vhodi ----------
@@ -305,6 +341,8 @@ export async function createRealEngine(canvas, scene, opts = {}) {
     const g = S.gain, uv = S.uv;
     renderer.toneMappingExposure = 1.4 * g;
     hemi.intensity = uv ? 0.08 : 0.8; lamp.intensity = uv ? 0.4 : 7.5; ceil.intensity = uv ? 0.3 : 9; moon.intensity = uv ? 0.15 : 1.4;
+    for (const [pl, base] of lamps2) pl.intensity = uv ? base * 0.05 : base;
+    for (const [pl, base] of lamps2) pl.intensity = uv ? base * 0.05 : base;
     fire.intensity = (uv ? 0.4 : 8) * (0.8 + 0.25 * Math.sin(S.t * 9) * Math.sin(S.t * 3.7) + 0.12 * Math.sin(S.t * 21));
     spot.intensity = S.flash ? 26 : 0; uvLight.intensity = uv ? 40 : 0;
   }
@@ -316,7 +354,7 @@ export async function createRealEngine(canvas, scene, opts = {}) {
       const b = m.userData.b; m.visible = !hidden(b);
       const o = b.off ? b.off(stateOf()) : null; m.position.set(m.userData.base.x + (o ? o[0] : 0), m.userData.base.y + (o ? o[1] : 0), m.userData.base.z + (o ? o[2] : 0));
     }
-    refreshDecals(false); applyLighting();
+    refreshDecals(false); applyLighting(); try { updatePeers(dt); } catch (e) { /* figure ne smejo ustaviti prikaza */ }
     const dp2 = dust.geometry.attributes.position; for (let i = 0; i < dustN; i++) { dp2.array[i * 3 + 1] += Math.sin(S.t * 0.3 + i) * 0.0004; dp2.array[i * 3] += Math.cos(S.t * 0.2 + i * 1.7) * 0.0003; } dp2.needsUpdate = true;
     camera.position.set(S.pos.x, S.pos.y + Math.sin(S.t * 1.2) * 0.003, S.pos.z); camera.rotation.set(S.pitch, -S.yaw, 0);
     if (canvas.isConnected) { try { renderer.render(sc, camera); } catch (e) { console.error('Napaka realističnega prikaza', e); } }
@@ -326,7 +364,7 @@ export async function createRealEngine(canvas, scene, opts = {}) {
 
   return {
     S, kind: 'real',
-    setState(st) { S.state = st; }, setFlash(on) { S.flash = !!on; if (on) S.uv = false; }, setUv(on) { S.uv = !!on; if (on) S.flash = false; }, setGain(v) { S.gain = v; },
+    setPeers, setState(st) { S.state = st; }, setFlash(on) { S.flash = !!on; if (on) S.uv = false; }, setUv(on) { S.uv = !!on; if (on) S.flash = false; }, setGain(v) { S.gain = v; },
     look(yaw, pitch) { S.yaw = yaw; S.pitch = pitch || 0; }, pad(f, s, r) { S.pad.f = f; S.pad.s = s; S.pad.r = r; }, hoverObj: () => S.hover,
     distanceTo(objId) { let best = 1e9; for (const m of objMeshes.get(objId) || []) { if (hidden(m.userData.b)) continue; const [a, c] = bounds(m); const px = clamp(S.pos.x, a[0], c[0]), py = clamp(S.pos.y, a[1], c[1]), pz = clamp(S.pos.z, a[2], c[2]); best = Math.min(best, Math.hypot(px - S.pos.x, py - S.pos.y, pz - S.pos.z)); } return best; },
     walkTo(objId, cb) {

@@ -6,6 +6,7 @@ import { createEngine } from './room3d-engine.js';
 import { createRealEngine } from './room3d-real.js';
 import { buildScene, OBJECT_LABELS } from './room3d-scene.js';
 import { CASE2_META as M, SUSPECTS, ACCUSE_FORM } from './room3d-data.js';
+import { DEFAULT_AVATAR, PALETTES, STYLES, ACCS, BUILDS, cleanAv, drawAvatar2D } from './room3d-avatar.js';
 
 const FINISHED = ['success', 'failed', 'expired', 'aborted'];
 
@@ -49,11 +50,12 @@ export async function room3dScreen(id) {
   const GAINS = [['Svetlost: srednja', 1.25], ['Svetlost: visoka', 1.8], ['Svetlost: nizka', 0.8]];
   let gainI = 0;
   const gainBtn = h('button', { class: 'btn small', onclick: () => { gainI = (gainI + 1) % GAINS.length; gainBtn.textContent = GAINS[gainI][0]; if (eng) eng.setGain(GAINS[gainI][1]); } }, GAINS[0][0]);
+  const avBtn = h('button', { class: 'btn small', onclick: () => avatarEditor() }, 'Moj lik');
   const uvBtn = h('button', { class: 'btn small', hidden: true, onclick: () => toggleUv() }, 'UV (U)');
 
   clear(host).append(live,
     h('header', { class: 'room__top' }, h('a', { class: 'logo', href: '#/nadzorna-plosca', 'aria-label': 'Nadzorna plošča' }, logo()), h('div', { class: 'room__case' }, h('b', null, M.title)), timerEl, teamEl, h('span', { class: 'spacer' }), statEl, nbBtn, soundBtn, leaveBtn),
-    h('div', { class: 'r3__stage' }, canvas, tip, dpad, turn, h('div', { class: 'r3__tools' }, invEl, flashBtn, gainBtn, qBtn, uvBtn), dialogHost, nbHost));
+    h('div', { class: 'r3__stage' }, canvas, tip, dpad, turn, h('div', { class: 'r3__tools' }, invEl, flashBtn, gainBtn, qBtn, avBtn, uvBtn), dialogHost, nbHost));
 
   // ---------- pomoč ----------
   const found = () => R.progress.found || {};
@@ -93,7 +95,7 @@ export async function room3dScreen(id) {
     }
     const old = eng; eng = next; if (old) old.destroy();
     quality = used; qBtn.textContent = qLabel(); try { localStorage.setItem('tlh.r3.quality', quality); } catch (_) { /* nič */ }
-    window.__tlhEngine = eng; eng.setGain(GAINS[gainI][1]); pushState(); sync();
+    window.__tlhEngine = eng; eng.setGain(GAINS[gainI][1]); pushState(); sync(); updatePeers();
     mounting = false;
   }
   function setQuality(k) { if (mounting || k === quality) return; mount(k, true); }
@@ -101,6 +103,49 @@ export async function room3dScreen(id) {
   function toggleFlash() { R.flash = !R.flash; if (R.flash) R.uv = false; sync(); }
   function toggleUv() { if (!items().uv) return; R.uv = !R.uv; if (R.uv) R.flash = false; sync(); }
   function sync() { if (eng) { eng.setFlash(R.flash); eng.setUv(R.uv); } flashBtn.classList.toggle('primary', R.flash); uvBtn.classList.toggle('primary', R.uv); uvBtn.hidden = !items().uv; }
+
+  // ---------- soigralci: pošiljanje svojega položaja, prikaz tujih ----------
+  let rawPos = {}, sent = { x: 1e9, z: 1e9, yaw: 1e9, at: 0, mv: false };
+  function updatePeers() {
+    if (!eng || !eng.setPeers) return;
+    const now = serverNow(); const list = [];
+    for (const [uid, p] of Object.entries(rawPos || {})) {
+      if (uid === S.user.uid || !p || typeof p.x !== 'number') continue;
+      if (now - (p.ts || 0) > 25000) continue; // neaktivni ne ostanejo v sobi
+      list.push({ uid, name: p.name || '?', x: p.x, z: p.z, yaw: p.yaw || 0, av: cleanAv(p.av) });
+    }
+    eng.setPeers(list);
+  }
+  const moveTimer = setInterval(async () => {
+    if (!eng || !R.core || R.core.status !== 'active') return;
+    const p = eng.S.pos, yaw = eng.S.yaw, now = Date.now();
+    const moved = Math.hypot(p.x - sent.x, p.z - sent.z) > 0.05 || Math.abs(yaw - sent.yaw) > 0.08;
+    // pošiljamo ob gibanju; ob mirovanju občasno »sem tu«, da soigralci vidijo, da sem v sobi
+    if (!moved && now - sent.at < 8000) return;
+    const mv = moved; sent = { x: p.x, z: p.z, yaw, at: now, mv };
+    try { await call('roomMove', { id, x: +p.x.toFixed(2), z: +p.z.toFixed(2), yaw: +yaw.toFixed(2), mv }); } catch (_) { /* nepomembno */ }
+  }, 1000);
+  const peerTimer = setInterval(updatePeers, 2000);
+
+  function avatarEditor() {
+    if (R.dialogOpen) return; R.dialogOpen = true;
+    const cur = cleanAv((S.profile && S.profile.avatar) || DEFAULT_AVATAR); let av = { ...cur };
+    const prev = h('canvas', { width: 240, height: 360, class: 'r3__prev' });
+    const draw = () => { const g = prev.getContext('2d'); g.clearRect(0, 0, 240, 360); const gr = g.createLinearGradient(0, 0, 0, 360); gr.addColorStop(0, '#2a2f3a'); gr.addColorStop(1, '#14171d'); g.fillStyle = gr; g.fillRect(0, 0, 240, 360); drawAvatar2D(g, av, 120, 330, 290, { name: S.user.username || null, light: 1 }); };
+    const swatches = (key, label) => h('div', { class: 'field' }, h('span', { class: 'label' }, label), h('div', { class: 'r3__sw' }, PALETTES[key].map((c) => h('button', { type: 'button', class: 'r3__swatch' + (av[key] === c ? ' on' : ''), style: `background:${c}`, 'aria-label': `${label} ${c}`, onclick: (e) => { av[key] = c; e.currentTarget.parentNode.querySelectorAll('.r3__swatch').forEach((x) => x.classList.remove('on')); e.currentTarget.classList.add('on'); draw(); } }))));
+    const choice = (key, label, names) => h('div', { class: 'field' }, h('span', { class: 'label' }, label), h('div', { class: 'r3__sw' }, names.map((n, i) => h('button', { type: 'button', class: 'btn small' + (av[key] === i ? ' primary' : ''), onclick: (e) => { av[key] = i; e.currentTarget.parentNode.querySelectorAll('button').forEach((x) => x.classList.remove('primary')); e.currentTarget.classList.add('primary'); draw(); } }, n))));
+    const close = () => { R.dialogOpen = false; clear(dialogHost); canvas.focus(); };
+    const err = h('div', { class: 'err', hidden: true });
+    const save = busyButton(h('button', { class: 'btn primary' }, 'Shrani lik'), async () => {
+      try { const r = await call('setAvatar', { avatar: av }); if (S.profile) S.profile.avatar = r.avatar; sent.at = 0; toast('Lik shranjen. Soigralci te bodo videli v novem videzu.', 'ok'); close(); } catch (e) { err.textContent = e.message; err.hidden = false; }
+    });
+    clear(dialogHost).append(h('div', { class: 'r3__scrim' }, h('div', { class: 'r3__dlg r3__dlg--av', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Moj lik' },
+      h('div', { class: 'row' }, h('h2', null, 'Moj lik'), h('span', { class: 'spacer' }), h('button', { class: 'iconbtn', 'aria-label': 'Zapri', onclick: close }, '×')),
+      h('div', { class: 'r3__avgrid' }, prev, h('div', null,
+        swatches('skin', 'Koža'), choice('style', 'Frizura', STYLES), swatches('hair', 'Lasje'), swatches('shirt', 'Majica'), swatches('pants', 'Hlače'), choice('acc', 'Dodatek', ACCS), choice('build', 'Postava', BUILDS))),
+      err, h('div', { class: 'row' }, save, h('button', { class: 'btn', onclick: close }, 'Prekliči')))));
+    draw();
+  }
 
   // ---------- interakcije ----------
   async function interact(obj) {
@@ -183,7 +228,7 @@ export async function room3dScreen(id) {
       h('div', { class: 'r3__tabs' }, tabs.map(([k, l]) => h('button', { class: 'btn small' + (R.tab === k ? ' primary' : ''), onclick: () => { R.tab = k; drawNb(); } }, l))), body);
     if (R.tab === 'sledi') {
       const list = cluesList();
-      body.append(h('p', { class: 'muted' }, `Odkritih sledi: ${list.length} od ${M.totalClues || 29}. Predmeti: ${Object.keys(items()).length}.`));
+      body.append(h('p', { class: 'muted' }, `Odkritih sledi: ${list.length} od ${M.totalClues || 28}. Predmeti: ${Object.keys(items()).length}.`));
       const by = {}; list.forEach((c) => { (by[c.obj] = by[c.obj] || []).push(c); });
       Object.keys(by).forEach((o) => body.append(h('div', { class: 'r3__grp' }, h('h4', null, OBJECT_LABELS[o] || o), by[o].map(clueBlock))));
       if (!list.length) body.append(h('p', { class: 'muted' }, 'Še nič. Poglejte po sobi in kliknite na predmete.'));
@@ -297,7 +342,8 @@ export async function room3dScreen(id) {
     watch(`investigations/${id}/chat`, upd('chat', (v) => { const last = Math.max(0, ...Object.values(v).map((m) => m.ts || 0)); if (R.chatTs !== undefined && Object.values(v).some((m) => m.uid !== S.user.uid && m.ts > R.chatTs)) sound.chat(); R.chatTs = last; R.chat = v; })),
     watch(`investigations/${id}/events`, upd('events', (v) => { R.events = v; onEvents(); })),
     watch(`presence/${id}`, upd('presence', (v) => { R.presence = v; })),
+    watch(`investigations/${id}/pos`, (v) => { rawPos = v || {}; updatePeers(); }),
   ];
   const pres = startPresence(id, S.user.uid);
-  return () => { sound.setTension(0); subs.forEach((u) => u()); clearInterval(timerHandle); clearInterval(hoverTimer); if (eng) eng.destroy(); stopPresence(id, S.user.uid, pres); };
+  return () => { sound.setTension(0); subs.forEach((u) => u()); clearInterval(timerHandle); clearInterval(hoverTimer); clearInterval(moveTimer); clearInterval(peerTimer); if (eng) eng.destroy(); stopPresence(id, S.user.uid, pres); };
 }

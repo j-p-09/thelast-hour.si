@@ -2,7 +2,7 @@
 export const CASE2_META = {
   id: 'PRIMER-002', no: '002', title: 'PRIMER 002: ZAKLENJENA PISARNA',
   subtitle: 'Soba, v kateri je vsak predmet priča.',
-  durationMin: 60, hintPenalty: 40, wrongPenalty: 100, maxAccusations: 3, accuseOpenFound: 16, accuseOpenSec: 600,
+  durationMin: 60, hintPenalty: 40, wrongPenalty: 100, maxAccusations: 3, accuseOpenFound: 16, totalClues: 28, accuseOpenSec: 600,
   briefing: [
     'V noči s sobote, 17. oktobra, na nedeljo so v zaklenjeni pisarni v vili našli Leona Marolta (67), lastnika dražbene hiše. Vrata so bila zaklenjena od znotraj, ključ je ostal v ključavnici, okno je bilo zapahnjeno.',
     'Vzrok smrti: zastrupitev z ogljikovim monoksidom. Telo so odpeljali; soba je ostala tak, kot so jo našli. Vi ste v njej.',

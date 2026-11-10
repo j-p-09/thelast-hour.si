@@ -2,6 +2,8 @@
 // sencenje po ploskvah, svetlobni viri, svetilka, UV-način, trki, izbiranje predmetov z žarkom.
 // Koordinate: x desno, y gor, z proti igralcu (sever = -z). Mere v metrih. Kot kamere (yaw) 0 = pogled proti severu (-z).
 
+import { drawAvatar2D } from './room3d-avatar.js';
+
 const NEAR = 0.07;
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 const hex = (h) => { const n = parseInt(h.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; };
@@ -30,7 +32,7 @@ export function createEngine(canvas, scene, opts = {}) {
   const S = {
     pos: { x: scene.spawn.x, y: 1.62, z: scene.spawn.z }, yaw: scene.spawn.yaw || 0, pitch: 0,
     flash: false, uv: false, gain: 1.0, hover: null, state: {}, auto: null, t: 0,
-    keys: new Set(), pad: { f: 0, s: 0, r: 0 }, W: 800, H: 500, dpr: 1, running: true, last: performance.now(),
+    keys: new Set(), peers: new Map(), pad: { f: 0, s: 0, r: 0 }, W: 800, H: 500, dpr: 1, running: true, last: performance.now(),
   };
   const fov = (opts.fov || 72) * Math.PI / 180;
   const tanHalf = Math.tan(fov / 2);
@@ -245,11 +247,16 @@ export function createEngine(canvas, scene, opts = {}) {
       b._a = a; b._c = c; b._d = nearestDist2(a, c) + (b.bias || 0);
       vis.push(b);
     }
-    const roots = vis.filter((b) => !b.on).sort((p, q) => q._d - p._d);
-    for (const r of roots) {
-      drawBox(r, r._a, r._c);
-      if (r.id) for (const ch of vis.filter((x) => x.on === r.id).sort((p, q) => q._d - p._d)) drawBox(ch, ch._a, ch._c);
+    const roots = vis.filter((b) => !b.on);
+    const list = roots.map((r) => ({ d: r._d, run() { drawBox(r, r._a, r._c); if (r.id) for (const ch of vis.filter((x) => x.on === r.id).sort((p, q) => q._d - p._d)) drawBox(ch, ch._a, ch._c); } }));
+    for (const q of S.peers.values()) {
+      const dx = q.x - S.pos.x, dz = q.z - S.pos.z; const fc = toCam([q.x, 0, q.z]); if (fc[2] < 0.35) continue;
+      const hc = toCam([q.x, 1.78, q.z]); const f = proj(fc), hp = proj(hc); const hpx = f[1] - hp[1]; if (hpx < 4 || f[0] < -200 || f[0] > S.W + 200) continue;
+      const L = dynLight([q.x, 1.0, q.z], [0, 0, 1], staticLight([q.x, 1.0, q.z], [0, 0, 1])); const light = clamp((L[0] + L[1] + L[2]) / 3 * 1.05 + 0.18, 0.4, 1.3);
+      list.push({ d: dx * dx + dz * dz - 0.15, run() { drawAvatar2D(g, q.av, f[0], f[1], hpx, { t: S.t + q.phase, walk: q.walk, name: fc[2] < 14 ? q.name : null, light }); } });
     }
+    list.sort((p, q) => q.d - p.d);
+    for (const it of list) it.run();
     // obris predmeta pod kazalcem
     if (S.hover && opts.outline !== false) drawOutline(S.hover);
     drawPost();
@@ -307,15 +314,16 @@ export function createEngine(canvas, scene, opts = {}) {
   }
   function pick(sx, sy) {
     const { o, d } = rayFromScreen(sx, sy);
-    let best = null, bd = 1e9;
+    let best = null, bd = 1e9, bestG = null, bdG = 1e9;
     for (const b of boxes) {
       if (hiddenNow(b) || b.noPick) continue;
       const [a, c] = boxBounds(b);
-      const t = rayBox(o, d, a, c);
-      if (t !== null && t < bd) { bd = t; best = b; }
+      const t = rayBox(o, d, a, c); if (t === null) continue;
+      if (b.ghost) { if (t < bdG) { bdG = t; bestG = b; } } else if (t < bd) { bd = t; best = b; }
     }
-    if (!best || !best.obj || bd > 12) return null;
-    return { obj: best.obj, dist: bd };
+    const hit = best && best.obj ? { b: best, t: bd } : (bestG && bestG.obj ? { b: bestG, t: bdG } : null);
+    if (!hit || hit.t > 12) return null;
+    return { obj: hit.b.obj, dist: hit.t };
   }
 
   // ---------- gibanje in trki ----------
@@ -362,6 +370,10 @@ export function createEngine(canvas, scene, opts = {}) {
     }
     if (mx || mz) { const [nx, nz] = collide(S.pos.x + mx, S.pos.z + mz); S.pos.x = nx; S.pos.z = nz; }
     S.pitch = clamp(S.pitch, -1.0, 1.0);
+    for (const q of S.peers.values()) {
+      const dx = q.tx - q.x, dz = q.tz - q.z, d = Math.hypot(dx, dz), k = Math.min(1, dt * 2.6);
+      q.x += dx * k; q.z += dz * k; q.walk = d > 0.06 ? 1 : 0; if (q.walk) q.phase += dt * 0.5;
+    }
   }
 
   // ---------- vhodi ----------
@@ -413,6 +425,11 @@ export function createEngine(canvas, scene, opts = {}) {
   return {
     S,
     setState(st) { S.state = st; },
+    setPeers(list) {
+      const seen = new Set();
+      for (const p of list) { seen.add(p.uid); let q = S.peers.get(p.uid); if (!q) { q = { x: p.x, z: p.z, tx: p.x, tz: p.z, phase: Math.random() * 6, walk: 0 }; S.peers.set(p.uid, q); } q.tx = p.x; q.tz = p.z; q.yaw = p.yaw; q.name = p.name; q.av = p.av; }
+      for (const k of [...S.peers.keys()]) if (!seen.has(k)) S.peers.delete(k);
+    },
     setGain(v) { S.gain = v; },
     setFlash(on) { S.flash = !!on; if (on) S.uv = false; },
     setUv(on) { S.uv = !!on; if (on) S.flash = false; },
