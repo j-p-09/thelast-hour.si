@@ -52,7 +52,7 @@ export const AV_DET = { shirt: '#2b2f38', pants: '#1d2028' };
 const DIFF = [null, { hp: 40, react: 1.3, gap: 1.6, acc: 0.25, dmg: 4, speed: 1.5, range: 15 }, { hp: 55, react: 1.0, gap: 1.25, acc: 0.35, dmg: 5.5, speed: 1.9, range: 17 }, { hp: 75, react: 0.7, gap: 0.95, acc: 0.45, dmg: 7, speed: 2.3, range: 19 }];
 const ROOM_X = [-25, -15, -5, 5, 15, 25];
 const SPAWNS = [
-  [[-20, -4], [-18, 4], [-23, -4]], [[-9, 3.5], [-12, -2], [-7, 0.5]], [[0, 0], [3, -2], [-2, 5]], [[10, 0], [12, -3], [7, 2]], [[20, 3], [19, -3]],
+  [[-16.4, -4.3], [-16.2, 4.2], [-17.6, 0.4]], [[-9, 3.5], [-12, -2], [-7, 0.5]], [[0, 0], [3, -2], [-2, 5]], [[10, 0], [12, -3], [7, 2]], [[20, 3], [19, -3]],
 ];
 const PER_DIFF = [null, [0, 1, 1, 1, 0], [1, 2, 2, 2, 1], [2, 3, 3, 3, 2]];
 export const CHECKPOINTS = [{ x: -23.5, z: 0, yaw: Math.PI / 2 }, { x: -13.5, z: 0, yaw: Math.PI / 2 }, { x: -3.5, z: 0, yaw: Math.PI / 2 }, { x: 6.5, z: 0, yaw: Math.PI / 2 }, { x: 16.5, z: 0, yaw: Math.PI / 2 }];
@@ -61,7 +61,7 @@ export function createFps(o) {
   // o: { stage, getEng, getBoxes, getState, role:'det'|'swat', difficulty, solo, sfx, toast, onUse, onDeath, onCuffed, checkpoint, mode:'range'|'combat', suspectAt }
   const G = makeGeom(o.getBoxes, o.getState); const sfx = o.sfx; const DD = DIFF[clamp(o.difficulty || 2, 1, 3)];
   const swat = o.role === 'swat';
-  const P = { hp: 100, armor: swat ? 100 : 60, mags: o.mode === 'range' ? 99 : (o.solo ? 5 : swat ? 9 : 3), ammo: 20, reloading: 0, cool: 0, aim: false, aimK: 0, recoil: 0, flash: 0, hurtFx: 0, hitFx: 0, headFx: 0, nv: false, dead: false, deadAt: 0, lastHurt: 0, badge: 0, spread: 0, msg: '', msgAt: 0, kills: 0, cuffed: false, lock: false, slot: 0, drawK: 0, third: false };
+  const P = { hp: 100, armor: swat ? 100 : [0, 60, 100][o.vest | 0] || 0, mags: o.mode === 'range' ? 99 : (o.solo ? 5 : swat ? 9 : 3), ammo: 20, reloading: 0, cool: 0, aim: false, aimK: 0, recoil: 0, flash: 0, hurtFx: 0, hitFx: 0, headFx: 0, nv: false, dead: false, deadAt: 0, lastHurt: 0, badge: 0, spread: 0, msg: '', msgAt: 0, kills: 0, cuffed: false, lock: false, slot: 0, drawK: 0, third: false };
   const state = { npcs: [], suspect: null, running: false, mode: o.mode, locked: false };
   const el = {};
   // ---------- HUD ----------
@@ -129,7 +129,10 @@ export function createFps(o) {
     el.gear.querySelectorAll('span').forEach((s) => s.classList.toggle('on', s.dataset.g === String(P.slot)));
   }
   function toggleCam() { P.third = !P.third; const E = eng(); if (E && E.setThird) E.setThird(P.third); say(P.third ? 'Pogled od zadaj (C za nazaj)' : 'Prva oseba', 1100); }
+  const nearSurrender = () => state.npcs.some((n) => (n.kind === 'suspect' || n.kind === 'guard') && n.state === 'surrender' && dist(n) < 3.2);
   function tryCuff() {
+    const g = state.npcs.filter((n) => n.kind === 'guard' && n.state === 'surrender' && dist(n) < 2.7).sort((a, b) => dist(a) - dist(b))[0];
+    if (g) { g.state = 'cuffed'; g.hands = false; g.walk = false; g.side = Math.random() < 0.5 ? 1 : -1; sfx.cuff(); say('Nasprotnik je aretiran in leži na tleh.', 2200); return; }
     const s = state.suspect; if (!s) return; const d = dist(s);
     if (s.state === 'surrender' && d < 2.6) { P.cuffed = true; s.state = 'cuffed'; s.hands = true; s.lyingT = 1; sfx.cuff(); P.slot = 0; say('Osumljenec je vklenjen in leži na tleh. Peljite ga na postajo.', 3400); if (o.onCuffed) o.onCuffed(); return; }
     if (s.state === 'surrender') { say('Stopite bližje (manj kot 2 m) in kliknite z lisicami.', 1800); return; }
@@ -137,12 +140,23 @@ export function createFps(o) {
     sfx.click();
   }
   function showBadge() { P.badge = 2.2; el.badge.innerHTML = `<div class="fps__bcard"><b>★ POLICIJA ★</b><span>${swat ? 'SPECIALNA ENOTA' : 'KRIMINALISTIČNI DETEKTIV'}</span></div>`; el.badge.classList.add('on'); sfx.shout(); say('»Policija!«', 1600); }
-  function shout() { sfx.shout(); say('»POLICIJA! ROKE V ZRAK!«', 1800); const s = state.suspect; if (s && s.state === 'hide' && dist(s) < 14) s.alert = true; }
+  function shout() {
+    sfx.shout(); say('»POLICIJA! ROKE V ZRAK!«', 1800); const s = state.suspect; if (s && s.state === 'hide' && dist(s) < 14 && !pointedAt(s, eng())) s.alert = true;
+    const E = eng(); if (!E || state.mode !== 'combat') return; const base = [0, 0.75, 0.5, 0.28][clamp(o.difficulty || 2, 1, 3)];
+    for (const n of state.npcs) {
+      if (n.kind !== 'guard' || n.hp <= 0 || n.state === 'surrender' || n.state === 'cuffed') continue; const d = dist(n); if (d > 13 || !G.los(E.S.pos.x, E.S.pos.z, n.x, n.z, 1.3)) continue;
+      if (Math.abs(angDiff(Math.atan2(n.x - E.S.pos.x, -(n.z - E.S.pos.z)), E.S.yaw)) > 0.7) continue;
+      const ch = base * (P.slot === 1 ? (P.aim ? 1.25 : 1) : 0.55) * (n.state === 'alert' ? 0.35 : 1) * (n.hurt > 0 ? 0.3 : 1);
+      if (Math.random() < ch) { n.state = 'surrender'; n.t = 0; n.hands = true; n.walk = false; say('»Ne streljajte! Predajam se!« Vzemite lisice (3) in kliknite nanj.', 3600); }
+      else if (n.state !== 'alert') { n.state = 'alert'; n.react = DD.react * 0.8; }
+    }
+  }
   const dist = (n) => { const E = eng(); return Math.hypot(n.x - E.S.pos.x, n.z - E.S.pos.z); };
   function dirOf(yaw, pitch) { return [Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), -Math.cos(yaw) * Math.cos(pitch)]; }
   function shoot() {
     const E = eng(); if (!E || P.dead || P.lock || P.cool > 0 || P.reloading > 0) return;
-    if (P.slot === 3) { tryCuff(); P.cool = 0.4; return; } if (P.slot !== 1 || P.drawK < 0.8) { if (P.slot === 0) say('Pištola je v tulcu: pritisnite 1', 1100); P.cool = 0.25; return; }
+    if (P.slot === 3) { if (!nearSurrender()) { if (E.S.hover && o.onUse) o.onUse(E.S.hover); else sfx.click(); P.cool = 0.3; return; } tryCuff(); P.cool = 0.4; return; }
+    if (P.slot !== 1) { if (o.onUse && E.S.hover) o.onUse(E.S.hover); P.cool = 0.3; return; } if (P.drawK < 0.8) { P.cool = 0.1; return; }
     if (P.ammo <= 0) { sfx.click(); say(P.mags > 0 ? 'Praznega šaržerja: pritisnite R' : 'Zmanjkalo je streliva!', 1600); P.cool = 0.4; return; }
     P.ammo--; P.cool = 0.22; P.recoil = 1; P.flash = 0.06; P.spread = Math.min(0.05, P.spread + 0.012); sfx.shot();
     if (P.ammo === 0 && P.mags > 0) say('Šaržer je prazen: R', 1400);
@@ -193,6 +207,8 @@ export function createFps(o) {
   }
   function tickGuard(n, dt, E) {
     n.t += dt; n.cd -= dt; n.flash = Math.max(0, n.flash - dt * 6); n.hurt = Math.max(0, n.hurt - dt * 2);
+    if (n.state === 'cuffed') { n.walk = false; return; }
+    if (n.state === 'surrender') { n.walk = false; n.yaw = Math.atan2(E.S.pos.x - n.x, -(E.S.pos.z - n.z)); if (n.t > 12 && !pointedAt(n, E)) { n.state = 'alert'; n.hands = false; n.react = DD.react; say('Nasprotnik je izkoristil trenutek in spet strelja!', 2400); } return; }
     const px = E.S.pos.x, pz = E.S.pos.z, d = Math.hypot(px - n.x, pz - n.z);
     const seen = d < DD.range && !P.dead && G.los(n.x, n.z, px, pz, 1.4) && (n.state === 'alert' || d < 7 || Math.abs(angDiff(Math.atan2(px - n.x, -(pz - n.z)), n.yaw)) < 1.3);
     n.walk = false;
@@ -253,9 +269,9 @@ export function createFps(o) {
         if (n.kind === 'guard') { if (n.hp > 0) tickGuard(n, dt, E); else { n.walk = false; n.flash = 0; } }
         else if (n.kind === 'suspect') { if (state.mode === 'combat') tickSuspect(n, dt, E); }
         else if (n.kind === 'target') tickTarget(n, dt);
-        const dead = n.kind === 'guard' && n.hp <= 0, fall = (n.kind === 'target' && n.down > 0) || dead || (n.kind === 'suspect' && n.state === 'cuffed' && n.lyingT !== undefined);
+        const dead = n.kind === 'guard' && n.hp <= 0, fall = (n.kind === 'target' && n.down > 0) || dead || (n.kind === 'suspect' && n.state === 'cuffed' && n.lyingT !== undefined) || (n.kind === 'guard' && n.state === 'cuffed');
         n.lyK = (n.lyK || 0) + ((fall ? 1 : 0) - (n.lyK || 0)) * Math.min(1, dt * (n.kind === 'target' && n.down < 0.5 ? 2 : 7));
-        list.push({ id: n.id, x: n.x, z: n.z, yaw: n.yaw, av: n.av, walk: n.walk, flash: n.flash || 0, hurt: n.hurt || 0, phase: n.phase, lying: n.lyK < 0.02 ? 0 : n.lyK, side: n.side || 1, armed: n.kind === 'guard' && !dead, cuffed: n.state === 'cuffed' });
+        list.push({ id: n.id, x: n.x, z: n.z, yaw: n.yaw, av: n.av, walk: n.walk, flash: n.flash || 0, hurt: n.hurt || 0, phase: n.phase, lying: n.lyK < 0.02 ? 0 : n.lyK, side: n.side || 1, armed: n.kind === 'guard' && !dead && n.state !== 'surrender' && n.state !== 'cuffed', hands: n.state === 'surrender', cuffed: n.state === 'cuffed' });
       }
       E.setNpcs(list);
       if (E.setSelf) { if (P.third) E.setSelf({ x: E.S.pos.x, z: E.S.pos.z, av: o.selfAv || GUARD_AV, walk: P.moving ? 1 : 0, armed: P.slot === 1 }); else E.setSelf(null); }
@@ -321,6 +337,6 @@ export function createFps(o) {
     stop() { state.running = false; if (P.third) { P.third = false; const E0 = eng(); if (E0 && E0.setThird) { E0.setThird(false); if (E0.setSelf) E0.setSelf(null); } } cancelAnimationFrame(raf); const E = eng(); if (E) { E.setFps(false); E.setNpcs([]); E.setSpeed(1); } root.classList.remove('on'); if (document.pointerLockElement && document.exitPointerLock) document.exitPointerLock(); const c = document.querySelector('.r3__canvas'); if (c) c.style.filter = ''; },
     destroy() { this.stop(); stageEl.removeEventListener('pointerdown', onDown); window.removeEventListener('pointerup', onUp); window.removeEventListener('pointermove', onMouseMove); window.removeEventListener('keydown', onKey); window.removeEventListener('keyup', onKey); stageEl.removeEventListener('contextmenu', noMenu); root.remove(); },
     use, say, lock(v) { P.lock = !!v; }, invalidate: () => G.invalidate(), refill() { P.hp = 100; P.armor = swat ? 100 : 60; P.ammo = 20; },
-    suspect: () => state.suspect, alive: () => state.npcs.filter((n) => n.kind === 'guard' && n.hp > 0).length,
+    suspect: () => state.suspect, alive: () => state.npcs.filter((n) => n.kind === 'guard' && n.hp > 0 && n.state !== 'cuffed').length,
   };
 }

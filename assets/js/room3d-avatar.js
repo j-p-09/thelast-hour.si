@@ -12,11 +12,12 @@ export const SEXES = ['Moški', 'Ženska'];
 export const BOTTOMS = ['Hlače', 'Krilo'];
 export const BUILDS = ['Vitka', 'Povprečna', 'Močna'];
 
-export const cleanAv = (a) => {
+const cleanAv0 = (a) => {
   const o = { ...DEFAULT_AVATAR, ...(a || {}) };
   const hx = (v, d) => (typeof v === 'string' && /^#[0-9a-fA-F]{6}$/.test(v) ? v : d);
   return { skin: hx(o.skin, DEFAULT_AVATAR.skin), hair: hx(o.hair, DEFAULT_AVATAR.hair), shirt: hx(o.shirt, DEFAULT_AVATAR.shirt), pants: hx(o.pants, DEFAULT_AVATAR.pants), style: Math.max(0, Math.min(5, o.style | 0)), acc: Math.max(0, Math.min(4, o.acc | 0)), build: Math.max(0, Math.min(2, o.build | 0)), sex: o.sex === 1 ? 1 : 0, bottom: o.bottom === 1 ? 1 : 0 };
 };
+export const cleanAv = (a) => { const r = cleanAv0(a); const q = a || {}; r.vest = Math.max(0, Math.min(2, q.vest | 0)); r.uni = q.uni ? 1 : 0; return r; };
 const mix = (hex, f) => { const n = parseInt(hex.slice(1), 16); const c = (v) => Math.max(0, Math.min(255, Math.round(v * f))); return `rgb(${c((n >> 16) & 255)},${c((n >> 8) & 255)},${c(n & 255)})`; };
 const rr = (g, x, y, w, h, r) => { g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r); g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath(); };
 
@@ -42,6 +43,7 @@ export function drawAvatar2D(g, avIn, x, y, h, o = {}) {
   const armY = -146;
   for (const sx of [-1, 1]) {
     const ax = sx * (tw / 2 + 4.5) + sx * sw * 0.15;
+    if (o.hands) { g.fillStyle = grad(ax - 5, armY, ax + 5, armY + 56, av.shirt); g.save(); g.translate(ax, armY + 4); g.rotate(-sx * 0.35); rr(g, -5, -48, 10, 50, 5); g.fill(); g.fillStyle = C(av.skin); g.beginPath(); g.ellipse(0, -52, 5, 6, 0, 0, 7); g.fill(); g.restore(); continue; }
     g.fillStyle = grad(ax - 5, armY, ax + 5, armY + 56, av.shirt); rr(g, ax - 5, armY, 10, 50 - sx * sw * 0.3, 5); g.fill();
     g.fillStyle = C(av.skin); g.beginPath(); g.ellipse(ax, armY + 54 - sx * sw * 0.3, 5, 6, 0, 0, 7); g.fill();
   }
@@ -52,7 +54,8 @@ export function drawAvatar2D(g, avIn, x, y, h, o = {}) {
   g.fillStyle = 'rgba(255,255,255,.10)'; rr(g, -tw / 2 + 4, -146, tw * 0.28, 52, 8); g.fill();
   if (SK) { g.fillStyle = grad(-tw / 2 - 8, -90, tw / 2 + 8, -40, av.pants); g.beginPath(); g.moveTo(-tw / 2 + 1, -92); g.lineTo(tw / 2 - 1, -92); g.lineTo(tw / 2 + 11 + av.build * 2, -40); g.lineTo(-tw / 2 - 11 - av.build * 2, -40); g.closePath(); g.fill(); g.strokeStyle = 'rgba(0,0,0,.18)'; g.stroke(); }
   else { g.fillStyle = C('#1c1c20'); g.fillRect(-tw / 2 + 2, -88, tw - 4, 5); } // pas
-  if (o.cop) { g.fillStyle = C('#101216'); rr(g, -tw / 2 - 3, -98, 11, 24, 3); g.fill(); g.fillStyle = C('#aab'); g.beginPath(); g.arc(tw / 2 - 6, -92, 3.2, 0, 7); g.fill(); g.fillStyle = C('#d8b030'); g.beginPath(); g.arc(-tw / 2 + 8, -126, 3, 0, 7); g.fill(); }
+  if (av.vest) { g.fillStyle = C(av.vest === 2 ? '#0e1116' : '#232830'); rr(g, -tw / 2 - 1, -150, tw + 2, 62, 5); g.fill(); g.fillStyle = C('#3a404a'); g.fillRect(-tw / 2 + 3, -118, 7, 14); g.fillRect(tw / 2 - 10, -118, 7, 14); if (av.vest === 2) { g.fillStyle = C('#161a20'); g.fillRect(-tw / 2 + 2, -150, 7, 12); g.fillRect(tw / 2 - 9, -150, 7, 12); } g.fillStyle = C('#d8b030'); g.beginPath(); g.arc(-tw / 2 + 8, -126, 3.4, 0, 7); g.fill(); }
+  if (o.cop || av.uni) { g.fillStyle = C('#101216'); rr(g, -tw / 2 - 3, -98, 11, 24, 3); g.fill(); g.fillStyle = C('#aab'); g.beginPath(); g.arc(tw / 2 - 6, -92, 3.2, 0, 7); g.fill(); g.fillStyle = C('#d8b030'); g.beginPath(); g.arc(-tw / 2 + 8, -126, 3, 0, 7); g.fill(); }
   if (o.cuffed) { g.fillStyle = C('#cfd3da'); rr(g, -9, -106, 18, 6, 3); g.fill(); }
   // vrat in glava
   g.fillStyle = Cm(av.skin, 0.86); rr(g, -4.5, -157, 9, 11, 3); g.fill();
@@ -147,7 +150,8 @@ export function buildAvatar3D(T, avIn, name, o2 = {}) {
     const tex = new T.CanvasTexture(c); tex.colorSpace = T.SRGBColorSpace;
     const sp = new T.Sprite(new T.SpriteMaterial({ map: tex, transparent: true, depthWrite: false })); sp.position.set(0, 2.0, 0); sp.scale.set(0.6, 0.15, 1); G.add(sp);
   } catch (_) { /* ime ni obvezno */ }
-  if (o2.cop) { const hol = part(new T.BoxGeometry(0.06, 0.15, 0.1), M('#101216', 0.6), -0.2, 0.93, 0.02); G.add(hol); G.add(part(new T.BoxGeometry(0.1, 0.03, 0.06), M('#cfd3da', 0.3, 0.8), 0.17, 0.95, 0.12)); G.add(part(new T.CylinderGeometry(0.022, 0.022, 0.012, 14), M('#d8b030', 0.3, 0.8), -0.1, 1.28, 0.145)).rotation.x = Math.PI / 2; }
+  if (av.vest) { const vm = M(av.vest === 2 ? '#0e1116' : '#232830', 0.8); const vb = part(new T.BoxGeometry(bw * 2.5 + (av.vest === 2 ? 0.04 : 0.02), 0.4, 0.26), vm, 0, 1.15, 0); G.add(vb); G.add(part(new T.CylinderGeometry(0.022, 0.022, 0.012, 14), M('#d8b030', 0.3, 0.8), -0.1, 1.28, 0.135)); G.children[G.children.length - 1].rotation.x = Math.PI / 2; }
+  if (o2.cop || av.uni) { const hol = part(new T.BoxGeometry(0.06, 0.15, 0.1), M('#101216', 0.6), -0.2, 0.93, 0.02); G.add(hol); G.add(part(new T.BoxGeometry(0.1, 0.03, 0.06), M('#cfd3da', 0.3, 0.8), 0.17, 0.95, 0.12)); { const bd = part(new T.CylinderGeometry(0.022, 0.022, 0.012, 14), M('#d8b030', 0.3, 0.8), -0.1, 1.28, 0.145); bd.rotation.x = Math.PI / 2; G.add(bd); } }
   if (o2.armed) arms[1].add(part(new T.BoxGeometry(0.045, 0.17, 0.07), M('#111', 0.4, 0.5), 0, -0.62, 0.03));
   G.userData.parts = { legs, arms };
   return G;

@@ -319,7 +319,7 @@ export async function createRealEngine(canvas, scene, opts = {}) {
       seen.add(n.id); let q = npcMap.get(n.id);
       if (!q) { let g = null; try { g = buildAvatar3D(T, n.av, '', { cop: !!n.cop, armed: !!n.armed }); sc.add(g); } catch (e) { console.error('NPC', e); } q = { g, ph: Math.random() * 6 }; npcMap.set(n.id, q); }
       if (!q.g) continue; q.g.rotation.order = 'YXZ'; q.g.position.set(n.x, (n.lying || 0) * 0.12, n.z); q.g.rotation.y = Math.PI - (n.yaw || 0); q.g.rotation.x = -(n.lying || 0) * Math.PI / 2 * (n.side || 1);
-      const pr = q.g.userData.parts; if (pr) { const sw = n.walk ? Math.sin(S.t * 7 + q.ph) * 0.6 : 0; pr.legs[0].rotation.x = sw; pr.legs[1].rotation.x = -sw; if (n.lying) { pr.arms[0].rotation.x = 0; pr.arms[1].rotation.x = 0; pr.legs[0].rotation.x = 0; pr.legs[1].rotation.x = 0; } else { pr.arms[0].rotation.x = n.armed ? -1.3 : 0; pr.arms[1].rotation.x = n.armed ? -1.3 : 0; } }
+      const pr = q.g.userData.parts; if (pr) { const sw = n.walk ? Math.sin(S.t * 7 + q.ph) * 0.6 : 0; pr.legs[0].rotation.x = sw; pr.legs[1].rotation.x = -sw; if (n.lying) { pr.arms[0].rotation.x = 0; pr.arms[1].rotation.x = 0; pr.legs[0].rotation.x = 0; pr.legs[1].rotation.x = 0; } else { const ar = n.hands ? -3.0 : n.armed ? -1.3 : 0; pr.arms[0].rotation.x = ar; pr.arms[1].rotation.x = ar; } }
       q.g.traverse((o) => { if (o.material && o.material.emissive) o.material.emissive.setRGB(n.hurt > 0 ? 0.6 : 0, 0, 0); });
     }
     for (const [k, q] of [...npcMap]) if (!seen.has(k)) { if (q.g) sc.remove(q.g); npcMap.delete(k); }

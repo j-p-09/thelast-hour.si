@@ -263,7 +263,7 @@ export function createEngine(canvas, scene, opts = {}) {
       const hc = toCam([n.x, 1.78, n.z]); const f = proj(fc), hp = proj(hc); const hpx = f[1] - hp[1]; if (hpx < 3 || f[0] < -200 || f[0] > S.W + 200) continue;
       const L = dynLight([n.x, 1.0, n.z], [0, 0, 1], staticLight([n.x, 1.0, n.z], [0, 0, 1])); const light = clamp((L[0] + L[1] + L[2]) / 3 * 1.05 + 0.22, 0.4, 1.3);
       list.push({ d: dx * dx + dz * dz - 0.15, run() {
-        drawAvatar2D(g, n.av, f[0], f[1], hpx, { t: S.t + (n.phase || 0), walk: n.walk ? 1 : 0, name: null, light, lying: n.lying || 0, side: n.side || 1, armed: n.armed, cop: n.cop, cuffed: n.cuffed });
+        drawAvatar2D(g, n.av, f[0], f[1], hpx, { t: S.t + (n.phase || 0), walk: n.walk ? 1 : 0, name: null, light, hands: n.hands, lying: n.lying || 0, side: n.side || 1, armed: n.armed, cop: n.cop, cuffed: n.cuffed });
         if (n.flash > 0) { const r = Math.max(3, hpx * 0.07); g.fillStyle = 'rgba(255,220,120,.95)'; g.beginPath(); g.arc(f[0] + hpx * 0.06, f[1] - hpx * 0.52, r * (1 + n.flash), 0, 7); g.fill(); }
         if (n.hurt > 0) { g.fillStyle = `rgba(255,30,30,${Math.min(0.6, n.hurt)})`; g.fillRect(f[0] - hpx * 0.14, f[1] - hpx * 0.95, hpx * 0.28, hpx * 0.8); }
       } });

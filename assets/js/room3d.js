@@ -120,6 +120,12 @@ export async function room3dScreen(id, caseId) {
   let fps = null, drive = null; const sfx4 = C4 ? makeSfx() : null; let setupEl = null, fadeEl = null;
   const setupOf = () => R.progress.setup || {};
   const roleOf = (uid) => (setupOf().roles || {})[uid] || (R.core && R.core.hostUid === uid ? 'det' : 'swat');
+  // oprema pred akcijo (Primer 004): obleka (0 civilna, 1 uniforma) in jopič (0 brez, 1 lahki, 2 težki); specialec ima vedno uniformo, čelado in težki jopič
+  const LO = (() => { try { const j = JSON.parse(localStorage.getItem('tlh.loadout') || '{}'); return { uni: j.uni ? 1 : 0, vest: Math.max(0, Math.min(2, j.vest | 0)) }; } catch (_) { return { uni: 0, vest: 1 }; } })();
+  const saveLO = () => { try { localStorage.setItem('tlh.loadout', JSON.stringify(LO)); } catch (_) { /* nič */ } sent.at = 0; };
+  const loCode = () => LO.uni * 4 + LO.vest;
+  const dressAv = (base, role, lo) => { const a = cleanAv(base); if (role === 'swat') return cleanAv({ ...a, ...AV_SWAT, uni: 1, vest: 2 }); const u = (lo >> 2) & 1, v = lo & 3; return cleanAv({ ...a, ...(u ? { shirt: '#1f2c4a', pants: '#1a2234' } : {}), uni: u, vest: Math.min(2, v) }); };
+  const myVest = () => (myRole() === 'swat' ? 2 : LO.vest);
   const myRole = () => (members().length <= 1 ? 'det' : roleOf(S.user.uid));
   const isHost = () => !!(R.core && R.core.hostUid === S.user.uid);
   function computePhase() { if (!C4) return null; if (R.cell) return 'cell'; if (R.progress.breach) return 'building'; if (setupOf().go) return 'drive'; return 'station'; }
@@ -133,9 +139,9 @@ export async function room3dScreen(id, caseId) {
       drive = createDrive({ stage, getEng: () => eng, sfx: sfx4, toast, vehicle: veh, onArrive: () => { R.arrived = true; drawSetup(); toast(isHost() ? 'Prispeli ste. Pritisnite UDOR.' : 'Prispeli ste. Počakajte na vodjo.', 'ok', 5000); } });
       drive.start();
     } else {
-      fps = createFps({ stage, getEng: () => eng, getBoxes: () => (lastScene ? lastScene.boxes : []), getState: () => eng.S.state, role: myRole(), difficulty: diff, solo, sfx: sfx4, toast,
+      fps = createFps({ stage, getEng: () => eng, getBoxes: () => (lastScene ? lastScene.boxes : []), getState: () => eng.S.state, role: myRole(), vest: myVest(), difficulty: diff, solo, sfx: sfx4, toast,
         onUse: (obj) => { if (obj) interactC4(obj); }, onDeath: async () => { try { return await call('roomCasualty', { id }); } catch (_) { return null; } },
-        onCuffed: () => { R.cell = true; try { sessionStorage.setItem(`tlh.cell.${id}`, '1'); } catch (_) { /* nič */ } setTimeout(() => fade('Osumljenca vozite na postajo …', 3200), 5200); setTimeout(() => after(), 8400); }, selfAv: cleanAv({ ...cleanAv((S.profile && S.profile.avatar) || DEFAULT_AVATAR), ...(myRole() === 'swat' ? AV_SWAT : AV_DET) }), checkpoint, mode: ph === 'station' ? 'range' : ph === 'cell' ? 'cell' : 'combat', baseGain: GAINS[gainI][1] });
+        onCuffed: () => { R.cell = true; try { sessionStorage.setItem(`tlh.cell.${id}`, '1'); } catch (_) { /* nič */ } setTimeout(() => fade('Osumljenca vozite na postajo …', 3200), 5200); setTimeout(() => after(), 8400); }, selfAv: dressAv((S.profile && S.profile.avatar) || DEFAULT_AVATAR, myRole(), loCode()), checkpoint, mode: ph === 'station' ? 'range' : ph === 'cell' ? 'cell' : 'combat', baseGain: GAINS[gainI][1] });
       fps.start(ph === 'station' ? 'range' : ph === 'cell' ? 'cell' : 'combat');
       if (ph === 'building') fps.say('Vdor! Obvladajte nasprotnike in odklepajte vrata. Osumljenec je za zadnjimi vrati.', 5000);
       if (ph === 'cell') fps.say('Osumljenec je v celici. Odprite celico (E) in izpolnite zapisnik.', 5000);
@@ -167,6 +173,10 @@ export async function room3dScreen(id, caseId) {
       const sel = h('select', { disabled: !hostNow || !!su.go, onchange: (e) => save({ difficulty: +e.target.value }) }, [1, 2, 3].map((n) => h('option', { value: n, selected: n === diff }, DN[n])));
       setupEl.append(h('span', { class: 'pill' }, 'Težavnost'), sel);
       members().forEach(([uid, m]) => { const r = roleOf(uid); setupEl.append(h('button', { class: 'btn small' + (r === 'det' ? ' primary' : ''), disabled: !hostNow || members().length < 2, title: 'Vodja izbere, kdo je detektiv', onclick: () => { const roles = {}; members().forEach(([u]) => { roles[u] = u === uid ? 'det' : 'swat'; }); save({ roles }); } }, `${m.username}: ${r === 'det' ? 'detektiv' : 'specialec'}`)); });
+      if (myRole() === 'det') {
+        const UN = ['Obleka: civilna', 'Obleka: uniforma'], VN = ['Jopič: brez', 'Jopič: lahki', 'Jopič: težki'];
+        setupEl.append(h('button', { class: 'btn small', disabled: !!su.go, onclick: (e) => { LO.uni = LO.uni ? 0 : 1; saveLO(); e.currentTarget.textContent = UN[LO.uni]; } }, UN[LO.uni]), h('button', { class: 'btn small', disabled: !!su.go, onclick: (e) => { LO.vest = (LO.vest + 1) % 3; saveLO(); e.currentTarget.textContent = VN[LO.vest]; } }, VN[LO.vest]));
+      } else setupEl.append(h('span', { class: 'pill' }, 'Specialec: uniforma, čelada, težki jopič'));
       if (myRole() === 'det') setupEl.append(h('button', { class: 'btn small', onclick: (e) => { R.vehicle = R.vehicle === 'civil' ? 'swat' : 'civil'; e.currentTarget.textContent = R.vehicle === 'civil' ? 'Vozilo: civilno' : 'Vozilo: z enoto'; } }, R.vehicle === 'civil' ? 'Vozilo: civilno' : 'Vozilo: z enoto'));
       if (hostNow) setupEl.append(h('button', { class: 'btn primary small', onclick: () => save({ go: true, difficulty: diff, roles: su.roles }) }, 'ODPELJI'));
       else setupEl.append(h('span', { class: 'muted' }, 'Vodja določi odhod. Vadite na strelišču.'));
@@ -223,7 +233,7 @@ export async function room3dScreen(id, caseId) {
       if (uid === S.user.uid || !p || typeof p.x !== 'number') continue;
       if (now - (p.ts || 0) > 25000) continue; // neaktivni ne ostanejo v sobi
       if (C4) { if (R.phase === 'drive' || p.ph !== R.phase) continue; }
-      let av = cleanAv(p.av); if (C4) { const ro = ((R.progress.setup || {}).roles || {})[uid]; av = cleanAv({ ...av, ...(ro === 'swat' ? AV_SWAT : AV_DET) }); }
+      let av = cleanAv(p.av); if (C4) { const ro = ((R.progress.setup || {}).roles || {})[uid] === 'swat' ? 'swat' : 'det'; av = dressAv(av, ro, p.lo | 0); }
       list.push({ uid, name: p.name || '?', x: p.x, z: p.z, yaw: p.yaw || 0, av });
     }
     eng.setPeers(list);
@@ -235,7 +245,7 @@ export async function room3dScreen(id, caseId) {
     // pošiljamo ob gibanju; ob mirovanju občasno »sem tu«, da soigralci vidijo, da sem v sobi
     if (!moved && now - sent.at < 8000) return;
     const mv = moved; sent = { x: p.x, z: p.z, yaw, at: now, mv };
-    try { await call('roomMove', { id, x: +p.x.toFixed(2), z: +p.z.toFixed(2), yaw: +yaw.toFixed(2), mv, ph: C4 ? R.phase : undefined }); } catch (_) { /* nepomembno */ }
+    try { await call('roomMove', { id, x: +p.x.toFixed(2), z: +p.z.toFixed(2), yaw: +yaw.toFixed(2), mv, ph: C4 ? R.phase : undefined, lo: C4 ? loCode() : undefined }); } catch (_) { /* nepomembno */ }
   }, 1000);
   const peerTimer = setInterval(updatePeers, 2000);
 

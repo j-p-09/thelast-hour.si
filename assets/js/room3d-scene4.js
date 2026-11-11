@@ -19,7 +19,7 @@ export function buildStation(opts = {}) {
   for (const z of [-6, -2, 2, 6]) B(`lane${z}`, null, [6.2, 0, z - 0.05], [17.4, 0.02, z + 0.05], '#d8b020', { solid: false });
   B('range_desk', 'st_range', [6.2, 0, -8.8], [6.9, 1.0, 8.8], '#4a4d53', { decals: { '+x': { draw(g, { L }) { g.fillStyle = sh('#3a3d43', L); g.fillRect(0, 0, 260, 60); txt(g, 'STRELIŠČE: pritisnite ENTER pred tarčami', 130, 36, 14, sh('#e8d070', L), 'center'); } } } });
   // omarice z opremo (zahod)
-  B('lockers', 'st_locker', [-17.9, 0, -5], [-17.1, 2.0, 5], '#4a5a70', { decals: { '+x': { draw(g, { L }) { g.fillStyle = sh('#34425a', L); for (let i = 0; i < 6; i++) { g.fillRect(6 + i * 70, 8, 62, 190); g.fillStyle = sh('#aab', L); g.fillRect(40 + i * 70, 100, 6, 14); g.fillStyle = sh('#34425a', L); } txt(g, 'OPREMA', 210, 220, 16, sh('#fff', L), 'center'); } } } });
+  B('lockers', 'st_locker', [-17.9, 0, -1.2], [-17.1, 2.0, 5.4], '#4a5a70', { decals: { '+x': { draw(g, { L }) { g.fillStyle = sh('#34425a', L); for (let i = 0; i < 6; i++) { g.fillRect(6 + i * 70, 8, 62, 190); g.fillStyle = sh('#aab', L); g.fillRect(40 + i * 70, 100, 6, 14); g.fillStyle = sh('#34425a', L); } txt(g, 'OPREMA', 210, 220, 16, sh('#fff', L), 'center'); } } } });
   // tabla operacije (sever)
   B('board', 'st_board', [-6, 1.2, -10.5], [0.5, 2.6, -10.45], '#e8e4d8', { solid: false, decals: { '+z': { draw(g, { L }) { g.fillStyle = sh('#e8e4d8', L); g.fillRect(0, 0, 260, 110); txt(g, 'OPERACIJA ČRNI TOVOR', 130, 24, 16, sh('#222', L), 'center'); g.fillStyle = sh('#a02020', L); g.fillRect(14, 36, 232, 3); txt(g, 'Cilj: Zorman Logistika', 14, 62, 12, sh('#222', L)); txt(g, 'Osumljenec: skrit v varnostni sobi', 14, 80, 12, sh('#222', L)); txt(g, 'Nasprotniki: oboroženi varnostniki', 14, 98, 12, sh('#222', L)); } } } });
   // vitrina z značko
@@ -48,14 +48,16 @@ export function buildStation(opts = {}) {
   // stene, vrata in dekor
   B('divider1', null, [-4.2, 0, 5.8], [-3.8, 3.2, 10.4], WALL, { solid: true });
   B('table', null, [-3, 0, -2], [0, 0.78, 0.4], '#5a4a3a', { top: '#7a6a58' });
-  if (cell) {
-    B('cell_back', null, [-17.4, 0, -9.8], [-12, 3.2, -9.7], '#555', { solid: false });
-    for (let i = 0; i < 9; i++) B(`bar${i}`, null, [-17 + i * 0.5, 0, -2.2], [-16.9 + i * 0.5, 2.6, -2.1], '#8a8f98');
-    B('bar_top', 'z_cell', [-17.1, 2.6, -2.25], [-12.6, 2.7, -2.05], '#8a8f98', { solid: false });
-    B('cell_cot', null, [-17.2, 0, -8.8], [-14.8, 0.5, -7.6], '#59606a');
-    B('cell_door', 'z_cell', [-12.6, 0, -2.4], [-12.4, 2.5, -1.4], '#7a808a', { solid: false, ghost: false });
-    B('cell_g', 'z_cell', [-17.4, 0, -4], [-12.2, 2.6, -1.8], '#000', { ghost: true, solid: false });
-  }
+  const cobj = cell ? 'z_cell' : null;
+  B('cell_back', null, [-17.4, 0, -9.8], [-12, 3.2, -9.7], '#555', { solid: false });
+  B('cell_wall', null, [-12.2, 0, -9.8], [-12.05, 3.2, -2.2], '#6c7078');
+  for (let i = 0; i < 9; i++) B(`bar${i}`, null, [-17 + i * 0.5, 0, -2.2], [-16.9 + i * 0.5, 2.6, -2.1], '#8a8f98');
+  B('bar_top', cobj, [-17.1, 2.6, -2.25], [-12.6, 2.7, -2.05], '#8a8f98', { solid: false });
+  B('cell_cot', null, [-17.2, 0, -8.8], [-14.8, 0.5, -7.6], '#59606a'); B('cell_wc', null, [-13.2, 0, -9.6], [-12.4, 0.5, -8.9], '#c8ccd2'); B('cell_pill', null, [-17.1, 0.5, -8.7], [-16.2, 0.62, -7.7], '#9aa0aa', { solid: false });
+  B('cell_door', cobj, [-12.6, 0, -2.4], [-12.4, 2.5, -1.4], '#7a808a', { solid: !cell, ghost: false });
+  B('cell_floor', null, [-17.4, 0, -9.8], [-12.2, 0.012, -2.2], '#2a2c30', { solid: false });
+  B('cellsign', null, [-16.2, 2.8, -2.3], [-13.2, 3.3, -2.25], '#c82020', { solid: false, decals: { '+z': { draw(g) { g.fillStyle = '#c82020'; g.fillRect(0, 0, 160, 40); g.fillStyle = '#fff'; g.font = 'bold 18px sans-serif'; g.textAlign = 'center'; g.fillText('PRIDRŽANJE', 80, 26); } } } });
+  if (cell) B('cell_g', 'z_cell', [-17.4, 0, -4], [-12.2, 2.6, -1.8], '#000', { ghost: true, solid: false });
   const lights = [
     { name: 'a', pos: [-9, 3.0, -4], color: [1, 0.96, 0.9], intensity: 0.9, range: 14 }, { name: 'b', pos: [0, 3.0, 0], color: [1, 0.96, 0.9], intensity: 0.9, range: 14 },
     { name: 'c', pos: [11, 3.0, 0], color: [0.9, 0.95, 1], intensity: 1.0, range: 14 }, { name: 'd', pos: [-10, 3.0, 8.5], color: [1, 0.9, 0.7], intensity: 0.7, range: 10 },
