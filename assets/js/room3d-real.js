@@ -1,6 +1,6 @@
 // Realistični prikaz sobe (three.js): fizikalni materiali, mehke sence, procedurne teksture, svetloba kamina in svetilke.
 // Knjižnica se naloži šele, ko igralec izbere »realistično«. Če nalaganje ne uspe, igra ostane na lahki različici.
-import { buildAvatar3D } from './room3d-avatar.js';
+import { buildAvatar3D, buildGhost3D } from './room3d-avatar.js';
 
 const CDNS = [
   'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.min.js',
@@ -206,14 +206,17 @@ export async function createRealEngine(canvas, scene, opts = {}) {
 
   // ---------- luči ----------
   const lamps2 = [];
-  const hemi = new T.HemisphereLight(0x7f8fbe, 0x4a3020, 0.8); sc.add(hemi);
+  const HOR = scene.kind === 'horror';
+  const hemi = new T.HemisphereLight(0x7f8fbe, 0x4a3020, HOR ? 0.22 : 0.8); sc.add(hemi);
   const lamp = new T.PointLight(0xffc27a, 7.5, 0, 2); lamp.position.set(...(LT('desk') ? [LT('desk').pos[0], LT('desk').pos[1] - 0.07, LT('desk').pos[2]] : [2.17, 1.18, 0.42])); lamp.castShadow = true; lamp.shadow.mapSize.set(1024, 1024); lamp.shadow.bias = -0.002; lamp.shadow.radius = 4; sc.add(lamp);
   const fire = new T.PointLight(0xff7a2a, 8, 0, 2); fire.position.set(...(LT('fire') ? [LT('fire').pos[0], LT('fire').pos[1] - 0.15, LT('fire').pos[2] + 0.35] : [0, 0.55, -2.25])); sc.add(fire);
   const ceil = new T.PointLight(0xffe2b0, 9, 0, 2); ceil.position.set(0, RH - 0.5, 0); ceil.castShadow = true; ceil.shadow.mapSize.set(512, 512); ceil.shadow.bias = -0.003; sc.add(ceil);
   const moon = new T.DirectionalLight(0x8aa6ff, 1.4); { const mp = LT('moon') ? LT('moon').pos : [-4.9, 2, 0]; const v = [mp[0], mp[1] - 0.8, mp[2]]; const l = Math.hypot(...v) || 1; moon.position.set(v[0] / l * 14, 0.8 + v[1] / l * 14 + 2, v[2] / l * 14); } moon.target.position.set(0, 0.8, 0); moon.castShadow = true; moon.shadow.mapSize.set(1024, 1024);
   moon.shadow.camera.left = -8; moon.shadow.camera.right = 8; moon.shadow.camera.top = 7; moon.shadow.camera.bottom = -7; moon.shadow.camera.far = 30; sc.add(moon); sc.add(moon.target);
-  for (const n of ['ceil2', 'ceil3', 'floor']) { const L = LT(n); if (L) { const pl = new T.PointLight(n === 'floor' ? 0xffc88a : 0xffe2b0, n === 'floor' ? 4 : 5, 0, 2); pl.position.set(...L.pos); sc.add(pl); lamps2.push([pl, n === 'floor' ? 4 : 5]); } }
+  for (const n of ['ceil2', 'ceil3', 'ceil4']) { const L = LT(n); if (L) { const pl = new T.PointLight(n === 'floor' ? 0xffc88a : 0xffe2b0, n === 'floor' ? 4 : 5, 0, 2); pl.position.set(...L.pos); sc.add(pl); lamps2.push([pl, n === 'floor' ? 4 : 5]); } }
   const spot = new T.SpotLight(0xfff0d8, 0, 16, 0.5, 0.65, 1.5); spot.position.set(0, 0, 0); spot.target.position.set(0, 0, -1); camera.add(spot); camera.add(spot.target);
+  const horLights = [];
+  if (HOR) { for (const L of (scene.lights || [])) { const pl = new T.PointLight(new T.Color(L.color[0], L.color[1], L.color[2]), 0, 0, 2); pl.position.set(...L.pos); sc.add(pl); horLights.push([pl, L.intensity * 9, L.name]); } }
   const uvLight = new T.SpotLight(0x8a4cff, 0, 14, 0.55, 0.5, 1.2); camera.add(uvLight); uvLight.target.position.set(0, 0, -1); camera.add(uvLight.target);
 
   // ---------- dekorji: posodobitev tekstur ----------
@@ -290,7 +293,7 @@ export async function createRealEngine(canvas, scene, opts = {}) {
   }
 
   // ---------- soigralci ----------
-  const peers = new Map();
+  const peers = new Map(); let ghostG = null;
   function setPeers(list) {
     const seen = new Set();
     for (const p of list) {
@@ -339,11 +342,12 @@ export async function createRealEngine(canvas, scene, opts = {}) {
   let last = performance.now();
   function applyLighting() {
     const g = S.gain, uv = S.uv;
-    renderer.toneMappingExposure = 1.4 * g;
-    hemi.intensity = uv ? 0.08 : 0.8; lamp.intensity = uv ? 0.4 : 7.5; ceil.intensity = uv ? 0.3 : 9; moon.intensity = uv ? 0.15 : 1.4;
+    renderer.toneMappingExposure = 1.4 * g * (S.lm == null ? 1 : S.lm);
+    if (HOR) { hemi.intensity = uv ? 0.05 : 0.22; lamp.intensity = 0; ceil.intensity = 0; moon.intensity = 0; for (const [pl, base, nm] of horLights) pl.intensity = (uv ? 0.05 : 1) * base * (nm === 'candles' ? 0.85 + 0.15 * Math.sin(S.t * 11) * Math.sin(S.t * 4.3) : 1); }
+    else { hemi.intensity = uv ? 0.08 : 0.8; lamp.intensity = uv ? 0.4 : 7.5; ceil.intensity = uv ? 0.3 : 9; moon.intensity = uv ? 0.15 : 1.4; }
     for (const [pl, base] of lamps2) pl.intensity = uv ? base * 0.05 : base;
     for (const [pl, base] of lamps2) pl.intensity = uv ? base * 0.05 : base;
-    fire.intensity = (uv ? 0.4 : 8) * (0.8 + 0.25 * Math.sin(S.t * 9) * Math.sin(S.t * 3.7) + 0.12 * Math.sin(S.t * 21));
+    fire.intensity = HOR ? 0 : (uv ? 0.4 : 8) * (0.8 + 0.25 * Math.sin(S.t * 9) * Math.sin(S.t * 3.7) + 0.12 * Math.sin(S.t * 21));
     spot.intensity = S.flash ? 26 : 0; uvLight.intensity = uv ? 40 : 0;
   }
   function loop(now) {
@@ -364,7 +368,8 @@ export async function createRealEngine(canvas, scene, opts = {}) {
 
   return {
     S, kind: 'real',
-    setPeers, setState(st) { S.state = st; }, setFlash(on) { S.flash = !!on; if (on) S.uv = false; }, setUv(on) { S.uv = !!on; if (on) S.flash = false; }, setGain(v) { S.gain = v; },
+    setPeers, setState(st) { S.state = st; }, setFlash(on) { S.flash = !!on; if (on) S.uv = false; }, setUv(on) { S.uv = !!on; if (on) S.flash = false; }, setGain(v) { S.gain = v; }, setLightMul(v) { S.lm = v; },
+    setGhost(gh) { if (!gh) { if (ghostG) ghostG.visible = false; return; } if (!ghostG) { ghostG = buildGhost3D(T); sc.add(ghostG); } ghostG.visible = true; ghostG.position.set(gh.x, 0, gh.z); ghostG.rotation.y = Math.atan2(S.pos.x - gh.x, S.pos.z - gh.z); for (const m of ghostG.userData.mats || []) m.opacity = gh.alpha; },
     look(yaw, pitch) { S.yaw = yaw; S.pitch = pitch || 0; }, pad(f, s, r) { S.pad.f = f; S.pad.s = s; S.pad.r = r; }, hoverObj: () => S.hover,
     distanceTo(objId) { let best = 1e9; for (const m of objMeshes.get(objId) || []) { if (hidden(m.userData.b)) continue; const [a, c] = bounds(m); const px = clamp(S.pos.x, a[0], c[0]), py = clamp(S.pos.y, a[1], c[1]), pz = clamp(S.pos.z, a[2], c[2]); best = Math.min(best, Math.hypot(px - S.pos.x, py - S.pos.y, pz - S.pos.z)); } return best; },
     walkTo(objId, cb) {

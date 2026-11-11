@@ -4,13 +4,18 @@ import { h, clear, icon, logo, busyButton, toast, confirmBox, sound, soundSettin
 import { call, watch, serverNow, startPresence, stopPresence } from './backend.js';
 import { createEngine } from './room3d-engine.js';
 import { createRealEngine } from './room3d-real.js';
-import { buildScene, OBJECT_LABELS } from './room3d-scene.js';
-import { CASE2_META as M, SUSPECTS, ACCUSE_FORM } from './room3d-data.js';
-import { DEFAULT_AVATAR, PALETTES, STYLES, ACCS, BUILDS, cleanAv, drawAvatar2D } from './room3d-avatar.js';
+import { buildScene as buildScene2, OBJECT_LABELS as LABELS2 } from './room3d-scene.js';
+import { buildScene3, OBJECT_LABELS3 } from './room3d-scene3.js';
+import { CASE2_META, SUSPECTS, ACCUSE_FORM, CASE3_META, SUSPECTS3, ACCUSE_FORM3 } from './room3d-data.js';
+import { createHorror } from './horror.js';
+import { DEFAULT_AVATAR, PALETTES, STYLES, ACCS, BUILDS, SEXES, BOTTOMS, cleanAv, drawAvatar2D } from './room3d-avatar.js';
 
 const FINISHED = ['success', 'failed', 'expired', 'aborted'];
 
-export async function room3dScreen(id) {
+export async function room3dScreen(id, caseId) {
+  const C3 = caseId === 'PRIMER-003';
+  const M = C3 ? CASE3_META : CASE2_META;
+  const SUS = C3 ? SUSPECTS3 : SUSPECTS, FORM = C3 ? ACCUSE_FORM3 : ACCUSE_FORM, LABELS = C3 ? OBJECT_LABELS3 : LABELS2, buildScene = C3 ? buildScene3 : buildScene2;
   const R = { id, core: null, progress: {}, content: {}, chat: {}, events: {}, presence: {}, loaded: new Set(), tab: 'sledi', notebook: false, flash: false, uv: false, seen: null, warned: new Set(), drafts: {}, introDone: false, finished: false };
   const host = h('div', { class: 'r3' }, spinner('Odpiram sobo …'));
   shell(host, { bare: true });
@@ -48,14 +53,18 @@ export async function room3dScreen(id) {
   const turn = h('div', { class: 'r3__turn' }, padBtn('⟲', 'r-', 'Obrni levo'), padBtn('⟳', 'r+', 'Obrni desno'));
   const flashBtn = h('button', { class: 'btn small', onclick: () => toggleFlash() }, 'Svetilka (F)');
   const GAINS = [['Svetlost: srednja', 1.25], ['Svetlost: visoka', 1.8], ['Svetlost: nizka', 0.8]];
-  let gainI = 0;
-  const gainBtn = h('button', { class: 'btn small', onclick: () => { gainI = (gainI + 1) % GAINS.length; gainBtn.textContent = GAINS[gainI][0]; if (eng) eng.setGain(GAINS[gainI][1]); } }, GAINS[0][0]);
+  let gainI = C3 ? 1 : 0;
+  const gainBtn = h('button', { class: 'btn small', onclick: () => { gainI = (gainI + 1) % GAINS.length; gainBtn.textContent = GAINS[gainI][0]; if (eng) eng.setGain(GAINS[gainI][1]); } }, GAINS[gainI][0]);
   const avBtn = h('button', { class: 'btn small', onclick: () => avatarEditor() }, 'Moj lik');
   const uvBtn = h('button', { class: 'btn small', hidden: true, onclick: () => toggleUv() }, 'UV (U)');
+  let soft = false; try { soft = localStorage.getItem('tlh.r3.soft') === '1'; } catch (_) { /* nič */ }
+  const softBtn = C3 ? h('button', { class: 'btn small', onclick: () => { soft = !soft; try { localStorage.setItem('tlh.r3.soft', soft ? '1' : '0'); } catch (_) { /* nič */ } softBtn.textContent = softLabel(); if (horrorOn) { restartHorror(); } } }, '') : null;
+  const softLabel = () => (soft ? 'Blag način: vklopljen' : 'Blag način: izklopljen');
+  if (softBtn) softBtn.textContent = softLabel();
 
   clear(host).append(live,
     h('header', { class: 'room__top' }, h('a', { class: 'logo', href: '#/nadzorna-plosca', 'aria-label': 'Nadzorna plošča' }, logo()), h('div', { class: 'room__case' }, h('b', null, M.title)), timerEl, teamEl, h('span', { class: 'spacer' }), statEl, nbBtn, soundBtn, leaveBtn),
-    h('div', { class: 'r3__stage' }, canvas, tip, dpad, turn, h('div', { class: 'r3__tools' }, invEl, flashBtn, gainBtn, qBtn, avBtn, uvBtn), dialogHost, nbHost));
+    h('div', { class: 'r3__stage' }, canvas, tip, dpad, turn, h('div', { class: 'r3__tools' }, invEl, flashBtn, gainBtn, qBtn, avBtn, uvBtn, softBtn), dialogHost, nbHost));
 
   // ---------- pomoč ----------
   const found = () => R.progress.found || {};
@@ -72,7 +81,7 @@ export async function room3dScreen(id) {
   function startEngine() {
     if (eng || mounting) return;
     mount(quality, false).then(() => {
-      hoverTimer = setInterval(() => { const o = eng && eng.hoverObj(); if (o) { tip.textContent = OBJECT_LABELS[o] || o; tip.hidden = false; } else tip.hidden = true; }, 120);
+      hoverTimer = setInterval(() => { const o = eng && eng.hoverObj(); if (o) { tip.textContent = LABELS[o] || o; tip.hidden = false; } else tip.hidden = true; }, 120);
     });
   }
   // Zamenjava prikazovalnika (lahki / realistični). Platno z enim tipom konteksta ne more postati drugega, zato vsakič novo.
@@ -100,7 +109,25 @@ export async function room3dScreen(id) {
   }
   function setQuality(k) { if (mounting || k === quality) return; mount(k, true); }
   function pushState() { if (eng) eng.setState({ items: items(), solved: solved(), revealed: R.progress.revealed || {}, found: found() }); }
-  function toggleFlash() { R.flash = !R.flash; if (R.flash) R.uv = false; sync(); }
+  // ---------- horor (Primer 003): zvok, utripanje, prikazen; baterija svetilke ----------
+  let horror = null, horrorOn = false; R.bat = 100; R.batUsed = new Set();
+  const batLabel = () => (C3 ? `Svetilka (F) ${Math.round(R.bat)} %` : 'Svetilka (F)');
+  function makeHorror() {
+    return createHorror({ soft,
+      playerPos: () => (eng ? { x: eng.S.pos.x, z: eng.S.pos.z, yaw: eng.S.yaw } : null), bounds: { x0: -11.5, x1: 11.5, z0: -4.5, z1: 4.5 },
+      onLight: (v) => { if (eng && eng.setLightMul) eng.setLightMul(v); }, onGhost: (gh) => { if (eng && eng.setGhost) eng.setGhost(gh); },
+      onShake: () => { host.classList.add('r3--shake'); setTimeout(() => host.classList.remove('r3--shake'), 450); },
+      getDarkness: () => (R.flash ? 0 : 1), getHot: () => 0, getRemaining: () => remainingSec() });
+  }
+  function startHorror() { if (!C3 || horrorOn) return; horrorOn = true; horror = makeHorror(); horror.start(); }
+  function restartHorror() { if (horror) horror.stop(); horror = makeHorror(); horror.start(); }
+  if (C3) host.addEventListener('pointerdown', startHorror, { once: true });
+  const batTimer = C3 ? setInterval(() => {
+    for (const k of Object.keys(items())) if (/^baterija/.test(k) && !R.batUsed.has(k)) { R.batUsed.add(k); R.bat = Math.min(100, R.bat + 50); toast('Našli ste baterijo. Svetilka je napolnjena.', 'ok', 3500); }
+    if (R.flash) { R.bat = Math.max(0, R.bat - 100 / 840); if (R.bat <= 0) { R.flash = false; sync(); toast('Baterija je prazna. Poiščite novo.', 'warn', 5000); if (horror) horror.sfx('whisper'); } }
+    flashBtn.textContent = batLabel();
+  }, 1000) : null;
+  function toggleFlash() { if (C3 && !R.flash && R.bat <= 0) { toast('Baterija je prazna. Poiščite novo.', 'warn', 3000); return; } if (horror) horror.flashClick(); R.flash = !R.flash; if (R.flash) R.uv = false; sync(); }
   function toggleUv() { if (!items().uv) return; R.uv = !R.uv; if (R.uv) R.flash = false; sync(); }
   function sync() { if (eng) { eng.setFlash(R.flash); eng.setUv(R.uv); } flashBtn.classList.toggle('primary', R.flash); uvBtn.classList.toggle('primary', R.uv); uvBtn.hidden = !items().uv; }
 
@@ -142,7 +169,7 @@ export async function room3dScreen(id) {
     clear(dialogHost).append(h('div', { class: 'r3__scrim' }, h('div', { class: 'r3__dlg r3__dlg--av', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Moj lik' },
       h('div', { class: 'row' }, h('h2', null, 'Moj lik'), h('span', { class: 'spacer' }), h('button', { class: 'iconbtn', 'aria-label': 'Zapri', onclick: close }, '×')),
       h('div', { class: 'r3__avgrid' }, prev, h('div', null,
-        swatches('skin', 'Koža'), choice('style', 'Frizura', STYLES), swatches('hair', 'Lasje'), swatches('shirt', 'Majica'), swatches('pants', 'Hlače'), choice('acc', 'Dodatek', ACCS), choice('build', 'Postava', BUILDS))),
+        choice('sex', 'Spol', SEXES), swatches('skin', 'Koža'), choice('style', 'Frizura', STYLES), swatches('hair', 'Lasje'), swatches('shirt', 'Majica'), swatches('pants', 'Hlače / krilo'), choice('bottom', 'Spodnji del', BOTTOMS), choice('acc', 'Dodatek', ACCS), choice('build', 'Postava', BUILDS))),
       err, h('div', { class: 'row' }, save, h('button', { class: 'btn', onclick: close }, 'Prekliči')))));
     draw();
   }
@@ -203,7 +230,7 @@ export async function room3dScreen(id) {
         err.hidden = true; const answer = {}; for (const f of lock.fields) answer[f.id] = inputs[f.id].value;
         try {
           const r = await call('roomSubmit', { id, lockId: lock.id, answer });
-          if (r.correct) { sound.ok(); toast('Odklenjeno!', 'ok'); rerender(r.view); handleNew(r.view); } else { sound.bad(); err.textContent = r.feedback + (r.lockSeconds ? ` Zaklenjeno za ${r.lockSeconds} s.` : ''); err.hidden = false; }
+          if (r.correct) { sound.ok(); if (horror && (lock.id === 'L_D1' || lock.id === 'L_D2')) horror.doorOpened(); toast('Odklenjeno!', 'ok'); rerender(r.view); handleNew(r.view); } else { sound.bad(); err.textContent = r.feedback + (r.lockSeconds ? ` Zaklenjeno za ${r.lockSeconds} s.` : ''); err.hidden = false; }
         } catch (e) { sound.bad(); err.textContent = e.message; err.hidden = false; }
       });
       const hintBtn = busyButton(h('button', { class: 'btn small' }, icon('hint', 15), ` Namig (−${M.hintPenalty} točk)`), async () => {
@@ -230,16 +257,28 @@ export async function room3dScreen(id) {
       const list = cluesList();
       body.append(h('p', { class: 'muted' }, `Odkritih sledi: ${list.length} od ${M.totalClues || 28}. Predmeti: ${Object.keys(items()).length}.`));
       const by = {}; list.forEach((c) => { (by[c.obj] = by[c.obj] || []).push(c); });
-      Object.keys(by).forEach((o) => body.append(h('div', { class: 'r3__grp' }, h('h4', null, OBJECT_LABELS[o] || o), by[o].map(clueBlock))));
+      Object.keys(by).forEach((o) => body.append(h('div', { class: 'r3__grp' }, h('h4', null, LABELS[o] || o), by[o].map(clueBlock))));
       if (!list.length) body.append(h('p', { class: 'muted' }, 'Še nič. Poglejte po sobi in kliknite na predmete.'));
       const hs = Object.values(R.content.hints || {}).flatMap((o) => Object.values(o)).sort((a, b) => a.ts - b.ts);
       if (hs.length) body.append(h('h4', null, 'Uporabljeni namigi'), hs.map((x) => h('div', { class: 'r3__hint' }, x.text)));
+      body.append(superPanel());
     } else if (R.tab === 'osumljenci') {
-      SUSPECTS.forEach((s) => body.append(h('div', { class: 'r3__sus' }, h('b', null, s.name), h('small', { class: 'muted' }, ` ${s.age} let · ${s.job}`), h('p', null, s.statement))));
+      SUS.forEach((s) => body.append(h('div', { class: 'r3__sus' }, h('b', null, s.name), h('small', { class: 'muted' }, ` ${s.age} let · ${s.job}`), h('p', null, s.statement))));
       body.append(h('p', { class: 'hint' }, 'Vsak je v čem lagal. Primerjajte izjave s tem, kar soba pove.'));
     } else if (R.tab === 'obtozba') body.append(accuseForm());
     else body.append(chatPanel());
     body.scrollTop = sy;
+  }
+
+  function superPanel() {
+    const max = M.superHints || 0; if (!max) return h('div');
+    const done = Object.values(R.content.superhints || {}).sort((a, b) => a.n - b.n);
+    const err = h('div', { class: 'err', hidden: true });
+    const btn = busyButton(h('button', { class: 'btn small', disabled: done.length >= max }, icon('hint', 15), ` Super namig ${done.length + 1 > max ? '' : (done.length + 1) + '/' + max} (−${M.superPenalty} točk)`), async () => {
+      if (!(await confirmBox('Super namig', `Računalnik pogleda, kje je ekipa, in pove, kako naprej. Stane ${M.superPenalty} točk. Na voljo jih je ${max} na igro; uporablja jih vsa ekipa.`, 'Uporabi super namig'))) return;
+      try { const r = await call('roomSuperHint', { id }); sound.ping(); toast(`Super namig ${r.n}/${r.max}: ${r.text}`, 'warn', 12000); } catch (e) { err.textContent = e.message; err.hidden = false; }
+    });
+    return h('div', { class: 'r3__grp' }, h('h4', null, 'Super namigi'), done.map((x) => h('div', { class: 'r3__hint' }, `Super namig ${x.n}: ${x.text}`)), err, btn);
   }
 
   function accuseForm() {
@@ -247,7 +286,7 @@ export async function room3dScreen(id) {
     const f = R.drafts.form = R.drafts.form || { evidence: [] };
     const used = Object.values((R.progress.accusations) || {}).length;
     wrap.append(h('p', { class: open ? 'okmsg' : 'hint' }, open ? `Obtožba je odklenjena. Uporabljenih: ${used}/${M.maxAccusations}. Vsaka napačna stane ${M.wrongPenalty} točk.` : `Obtožba se odklene, ko odkrijete ${M.accuseOpenFound} sledi (zdaj ${Object.keys(found()).length}) ali ko ostane manj kot 10 minut.`));
-    ACCUSE_FORM.forEach((fld) => wrap.append(h('div', { class: 'field' }, h('label', { for: `ac-${fld.id}` }, fld.label),
+    FORM.forEach((fld) => wrap.append(h('div', { class: 'field' }, h('label', { for: `ac-${fld.id}` }, fld.label),
       h('select', { id: `ac-${fld.id}`, disabled: !open, onchange: (e) => { f[fld.id] = e.target.value; } }, h('option', { value: '' }, '— izberite —'), fld.options.map(([v, t]) => h('option', { value: v, selected: f[fld.id] === v }, t))))));
     const ev = cluesList();
     wrap.append(h('div', { class: 'field' }, h('span', { class: 'label' }, 'Ključne sledi (do 5, neobvezno)'),
@@ -279,7 +318,7 @@ export async function room3dScreen(id) {
     clear(teamEl);
     members().forEach(([uid, m]) => teamEl.append(h('span', { class: 'chip', title: `${m.username}${m.away ? ' · zapustil' : ''}` }, h('span', { class: 'dot' + (R.presence[uid] === true && !m.away ? ' on' : '') }), m.username)));
     const hints = Object.values(R.progress.hints || {}).reduce((a, b) => a + b, 0);
-    clear(statEl).append(h('span', { class: 'pill' }, `Sledi ${Object.keys(found()).length}`), h('span', { class: 'pill' }, `Ključavnice ${Object.keys(solved()).length}/4`), h('span', { class: 'pill' }, `Namigi ${hints}`));
+    clear(statEl).append(h('span', { class: 'pill' }, `Sledi ${Object.keys(found()).length}`), h('span', { class: 'pill' }, `Ključavnice ${Object.keys(solved()).length}/${M.locks || 4}`), h('span', { class: 'pill' }, `Namigi ${hints}`));
     clear(invEl); Object.keys(items()).forEach((iid) => { const it = (R.content.items || {})[iid]; invEl.append(h('span', { class: 'r3__item', title: it ? it.desc : iid }, it ? it.title : iid)); });
     uvBtn.hidden = !items().uv;
   }
@@ -321,7 +360,8 @@ export async function room3dScreen(id) {
     clear(dialogHost).append(h('div', { class: 'r3__scrim' }, h('div', { class: 'r3__dlg r3__dlg--intro', role: 'dialog', 'aria-modal': 'true' },
       h('div', { class: 'kicker' }, 'Zaupno'), h('h2', null, M.title), M.briefing.map((t) => h('p', null, t)),
       h('h4', null, 'Upravljanje'), h('dl', { class: 'r3__keys' }, M.controls.map(([a, b]) => [h('dt', null, a), h('dd', null, b)])),
-      h('button', { class: 'btn primary', onclick: close }, 'Vstopi v sobo'))));
+      C3 ? h('p', { class: 'hint' }, 'Opozorilo: igra vsebuje strašljive zvoke, nenadne glasne zvoke in utripajočo svetlobo. Če ste občutljivi, vklopite »Blag način« (gumb spodaj v sobi). Zvok naj bo vklopljen.') : null,
+      h('button', { class: 'btn primary', onclick: () => { close(); startHorror(); } }, 'Vstopi v sobo'))));
   }
 
   let ready = false;
@@ -345,5 +385,5 @@ export async function room3dScreen(id) {
     watch(`investigations/${id}/pos`, (v) => { rawPos = v || {}; updatePeers(); }),
   ];
   const pres = startPresence(id, S.user.uid);
-  return () => { sound.setTension(0); subs.forEach((u) => u()); clearInterval(timerHandle); clearInterval(hoverTimer); clearInterval(moveTimer); clearInterval(peerTimer); if (eng) eng.destroy(); stopPresence(id, S.user.uid, pres); };
+  return () => { sound.setTension(0); subs.forEach((u) => u()); clearInterval(timerHandle); clearInterval(hoverTimer); clearInterval(moveTimer); clearInterval(peerTimer); if (batTimer) clearInterval(batTimer); if (horror) horror.stop(); if (eng) eng.destroy(); stopPresence(id, S.user.uid, pres); };
 }

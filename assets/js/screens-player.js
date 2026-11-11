@@ -2,7 +2,7 @@
 import { shell, go, S, loadCase } from './app.js';
 import { h, clear, icon, busyButton, toast, modal, confirmBox, sound, spinner, copyText, download, b64ToBlob, fmtDate, fmtDateTime, fmtDur, STATUS_SL, OUTCOME_SL, MODE_SL, rankFor, plural } from './ui.js';
 import { call, watch, getOnce, startPresence, stopPresence, changePassword } from './backend.js';
-import { CASE2_META } from './room3d-data.js';
+import { CASE2_META, CASE3_META } from './room3d-data.js';
 
 const BADGES = [
   ['PRVA PREISKAVA', 'Zaključena prva preiskava (uspešna ali ne).', 'shield'],
@@ -38,7 +38,10 @@ function historyList(rows) {
 }
 
 
-const CASE1 = 'PRIMER-001', CASE2 = 'PRIMER-002';
+const CASE1 = 'PRIMER-001', CASE2 = 'PRIMER-002', CASE3 = 'PRIMER-003';
+const ROOM = { [CASE2]: { no: '002', meta: CASE2_META }, [CASE3]: { no: '003', meta: CASE3_META } };
+const isRoom = (cid) => !!ROOM[cid];
+const noOf = (cid) => (ROOM[cid] ? ROOM[cid].no : '001');
 const caseRows = (rows, caseId) => Object.values(rows || {}).filter((r) => (r.caseId || CASE1) === caseId);
 // Shranjena koda za primer (vpisana na nadzorni plošči), ki ustreza kategoriji.
 function storedCode(caseId, category) {
@@ -69,7 +72,7 @@ async function dashboard() {
     try {
       const r = await call('activateCode', { code: kodaIn.value });
       kodaIn.value = ''; sound.ok();
-      toast(`Koda sprejeta: Primer ${r.caseId === CASE2 ? '002' : '001'} je odklenjen (${r.category === 'solo' ? 'Solo detektiv' : 'Skupina detektivov'}).`, 'ok', 6000);
+      toast(`Koda sprejeta: Primer ${noOf(r.caseId)} je odklenjen (${r.category === 'solo' ? 'Solo detektiv' : 'Skupina detektivov'}).`, 'ok', 6000);
       setTimeout(drawCases, 400); setTimeout(drawCases, 1500);
     } catch (e) { showErr(e.message); }
   });
@@ -82,7 +85,7 @@ async function dashboard() {
   async function startSolo(caseId) {
     err.hidden = true;
     let accessCode = null;
-    const meta = caseId === CASE2 ? CASE2_META : c.meta;
+    const meta = isRoom(caseId) ? ROOM[caseId].meta : c.meta;
     if (!unlockedCase(caseId, rows)) { accessCode = await confirmStart(meta, 'solo', caseId); if (!accessCode) return; }
     try {
       const r = await call('createInvestigation', { solo: true, accessCode, caseId });
@@ -102,16 +105,16 @@ async function dashboard() {
     return h('div', { class: 'card case' + (canPlay ? ' card--glow' : ' case--locked') },
       h('div', { class: 'row' }, h('div', { class: 'kicker' }, `Primer ${no}`), h('span', { class: 'spacer' }), h('span', { class: `pill pill--${kind}` }, label)),
       h('h2', null, meta.title.replace(/^PRIMER \d+: /, '')), h('p', { class: 'muted' }, meta.subtitle),
-      h('p', { class: 'case__kind' }, caseId === CASE2 ? 'Virtualna 3D soba: premikate se po prostoru in odkrivate predmete. Malo branja, veliko iskanja.' : 'Zaupni spisi: dokumenti, zaslišanja, uganke in tabla s povezavami.'),
+      h('p', { class: 'case__kind' }, caseId === CASE3 ? 'HORROR 3D pobeg: tri sobe, vrata, sefi in zvoki, ki jih ne boste pozabili. Zelo težko. Priporočeno s slušalkami.' : caseId === CASE2 ? 'Virtualna 3D soba: premikate se po prostoru in odkrivate predmete. Malo branja, veliko iskanja.' : 'Zaupni spisi: dokumenti, zaslišanja, uganke in tabla s povezavami.'),
       note ? h('p', { class: 'hint' }, note) : null,
       h('div', { class: 'row', style: 'margin-top:10px' }, soloB, teamB));
   }
 
   function drawCases() {
-    const done1 = caseRows(rows, CASE1), done2 = caseRows(rows, CASE2);
-    const solved1 = done1.some((r) => r.outcome === 'success'), solved2 = done2.some((r) => r.outcome === 'success');
+    const done1 = caseRows(rows, CASE1), done2 = caseRows(rows, CASE2), done3 = caseRows(rows, CASE3);
+    const solved1 = done1.some((r) => r.outcome === 'success'), solved2 = done2.some((r) => r.outcome === 'success'), solved3 = done3.some((r) => r.outcome === 'success');
     const concl1 = done1.some((r) => r.outcome !== 'aborted');
-    const acc1 = unlockedCase(CASE1, rows), acc2 = unlockedCase(CASE2, rows);
+    const acc1 = unlockedCase(CASE1, rows), acc2 = unlockedCase(CASE2, rows), acc3 = unlockedCase(CASE3, rows);
     const s1 = solved1 ? { label: 'Rešen', kind: 'ok', note: 'Primer je odklenjen za vedno. Lahko ga ponovite.', canPlay: true }
       : concl1 ? { label: 'Zaključen, nerešen', kind: 'warn', note: 'Primer je odklenjen za vedno. Kode ne potrebujete več.', canPlay: true }
         : acc1 ? { label: 'Odklenjen', kind: 'ok', note: 'Koda ni več potrebna.', canPlay: true }
@@ -119,7 +122,10 @@ async function dashboard() {
     const s2 = !concl1 ? { label: 'Zaklenjen', kind: 'bad', note: 'Odklene se po zaključenem Primeru 001 in z veljavno kodo za Primer 002. Lahko pa se kot gost pridružite ekipi igralca, ki je Primer 001 že zaključil (koda za povabilo spodaj).', canPlay: false }
       : acc2 ? { label: solved2 ? 'Rešen' : 'Odklenjen', kind: 'ok', note: solved2 ? 'Primer je odklenjen za vedno. Lahko ga ponovite.' : 'Koda ni več potrebna.', canPlay: true }
         : { label: 'Čaka na kodo', kind: 'warn', note: 'Vnesite kodo za Primer 002 zgoraj.', canPlay: false };
-    clear(casesBox).append(caseCard('001', CASE1, c.meta, s1), caseCard('002', CASE2, CASE2_META, s2));
+    const s3 = !concl1 ? { label: 'Zaklenjen', kind: 'bad', note: 'Odklene se po zaključenem Primeru 001 in z veljavno kodo za Primer 003. Lahko se pridružite ekipi igralca, ki je Primer 001 že zaključil.', canPlay: false }
+      : acc3 ? { label: solved3 ? 'Rešen' : 'Odklenjen', kind: 'ok', note: solved3 ? 'Primer je odklenjen za vedno. Lahko ga ponovite.' : 'Koda ni več potrebna. Vsebuje strašljive zvoke in utripajočo svetlobo.', canPlay: true }
+        : { label: 'Čaka na kodo', kind: 'warn', note: 'Vnesite kodo za Primer 003 zgoraj.', canPlay: false };
+    clear(casesBox).append(caseCard('001', CASE1, c.meta, s1), caseCard('002', CASE2, CASE2_META, s2), caseCard('003', CASE3, CASE3_META, s3));
   }
 
   body.append(
@@ -151,7 +157,7 @@ function confirmStart(meta, mode, caseId) {
   const code = h('input', { id: 'acode', maxlength: 24, autocomplete: 'off', placeholder: 'npr. ABCD-2345', style: 'text-transform:uppercase;letter-spacing:.15em;font-family:var(--font-mono)' });
   const err = h('div', { class: 'err', hidden: true, role: 'alert' });
   let val = null;
-  const no = caseId === CASE2 ? '002' : '001';
+  const no = noOf(caseId);
   const pen = meta.hintPenalty, wr = meta.wrongAccusationPenalty || meta.wrongPenalty;
   return new Promise((res) => modal({
     title: `Pred začetkom: Primer ${no}`,
@@ -202,7 +208,7 @@ async function lobby(id) {
     if (core.status !== 'lobby') return go('#/nadzorna-plosca');
     const members = Object.entries(core.members || {});
     const isHost = core.hostUid === S.user.uid;
-    const caseId = core.caseId || CASE1; const meta = caseId === CASE2 ? CASE2_META : c.meta;
+    const caseId = core.caseId || CASE1; const meta = isRoom(caseId) ? ROOM[caseId].meta : c.meta;
     const startBtn = busyButton(h('button', { class: 'btn primary' }, 'Začni preiskavo'), async () => {
       const cat = members.length === 1 ? 'solo' : 'group';
       let accessCode = null;
@@ -215,7 +221,7 @@ async function lobby(id) {
     });
     const leaveBtn = busyButton(h('button', { class: 'btn ghost' }, 'Zapusti sobo'), async () => { try { await call('leaveInvestigation', { id }); } catch (e) { /* nič */ } go('#/nadzorna-plosca'); });
     clear(view).append(
-      h('div', { class: 'kicker' }, `Čakalnica · Primer ${caseId === CASE2 ? '002' : '001'}`), h('h1', null, 'Preiskovalna soba'),
+      h('div', { class: 'kicker' }, `Čakalnica · Primer ${noOf(caseId)}`), h('h1', null, 'Preiskovalna soba'),
       h('div', { class: 'card card--glow' },
         h('p', { class: 'muted' }, 'Pošljite kodo prijateljema (največ dva dodatna detektiva). Ko gostitelj začne preiskavo, se sestava ekipe zaklene.'),
         h('div', { class: 'row' }, h('span', { class: 'code', 'aria-label': `Koda za povabilo: ${core.code.split('').join(' ')}` }, core.code),
@@ -243,22 +249,22 @@ async function result(id) {
     if (!core) return;
     if (['lobby', 'active'].includes(core.status)) return go(`#/preiskava/${id}`);
     if (!res) return;
-    if (res.caseId === CASE2) {
+    if (isRoom(res.caseId)) {
       const okk = res.success; const o = res.official || {};
       const names2 = Object.values(res.members || {}).map((m) => `${m.username} (${m.badge})`);
       const myB = ((res.badges || {})[S.user.uid] || '').split('|').filter(Boolean);
       const cl = (v, l) => h('div', { class: 'stat' }, h('b', null, String(v)), h('span', null, l));
       clear(view).append(
         h('div', { class: 'finale ' + (okk ? 'finale--win' : 'finale--lose') },
-          h('div', { class: 'big' }, okk ? 'Primer 002 rešen' : res.outcome === 'expired' ? 'Čas je potekel' : 'Preiskava neuspešna'),
+          h('div', { class: 'big' }, okk ? `Primer ${noOf(res.caseId)} rešen` : res.outcome === 'expired' ? 'Čas je potekel' : 'Preiskava neuspešna'),
           h('h1', null, okk ? 'VRATA SE ODPIRAJO.' : 'PRIMER OSTANE NEREŠEN.'),
           okk ? h('div', { class: 'rank' }, res.rank) : h('span', { class: 'stamp' }, res.outcome === 'expired' ? 'ČAS JE POTEKEL' : 'NEUSPEH'),
           !okk && res.reason ? h('p', { class: 'muted' }, res.reason) : null),
         h('div', { class: 'card' },
           h('div', { class: 'grid c4' }, cl(fmtDur(res.durationSec), 'Trajanje'), cl(`${res.evidenceCount}/${res.evidenceTotal}`, 'Odkrite sledi'), cl(`${res.puzzlesSolved}/${res.puzzlesTotal}`, 'Odklenjene ključavnice'), cl(res.hintsUsed, 'Namigi'),
-            cl(res.wrongAccusations, 'Napačne obtožbe'), cl(okk ? res.score : '–', 'Končna ocena (točke)'), cl(MODE_SL[res.mode] || res.mode, 'Način'), cl(OUTCOME_SL[res.outcome], 'Stanje')),
+            cl(res.superHints || 0, 'Super namigi'), cl(res.wrongAccusations, 'Napačne obtožbe'), cl(okk ? res.score : '–', 'Končna ocena (točke)'), cl(MODE_SL[res.mode] || res.mode, 'Način'), cl(OUTCOME_SL[res.outcome], 'Stanje')),
           h('p', { style: 'margin-top:16px' }, h('b', null, 'Detektivi: '), names2.join(', ')),
-          okk ? h('p', null, h('b', null, 'Storilka: '), res.culprit) : null,
+          okk ? h('p', null, h('b', null, res.caseId === CASE3 ? 'Odgovoren: ' : 'Storilka: '), res.culprit) : null,
           okk ? h('div', { style: 'margin-top:12px' }, h('b', null, 'Dosežene značke: '), myB.length ? myB.map((b) => h('span', { class: 'pill pill--ok', style: 'margin:0 6px 6px 0' }, b)) : h('span', { class: 'muted' }, 'brez novih značk')) : null),
         h('div', { class: 'card', style: 'margin-top:16px' }, h('h2', null, 'Uradna rešitev'),
           h('p', null, o.summary), h('p', null, h('b', null, 'Motiv: '), o.motive), h('p', null, h('b', null, 'Način: '), o.method),

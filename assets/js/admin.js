@@ -1,4 +1,5 @@
 // Administratorska nadzorna plošča. Pravice preveri zaledje (seja administratorja); stran sama ni varnostni mehanizem.
+import { VERSION } from './version.js';
 import { initFirebase, state as fb, onAuth, signIn, signOutUser, getClaims, watch, getOnce, call, authErrorText, currentUser } from './backend.js';
 import { h, clear, icon, logo, busyButton, toast, modal, confirmBox, spinner, copyText, download, b64ToBlob, fmtDateTime, fmtTime, fmtDur, fmtClock, STATUS_SL, OUTCOME_SL, MODE_SL } from './ui.js';
 
@@ -136,7 +137,7 @@ async function openDetail(id) {
 
 // ---------- kode za dostop ----------
 const CAT_SL = { solo: 'Solo detektiv', group: 'Skupina detektivov' };
-const CASE_SL = { 'PRIMER-001': 'Primer 001', 'PRIMER-002': 'Primer 002' };
+const CASE_SL = { 'PRIMER-001': 'Primer 001', 'PRIMER-002': 'Primer 002', 'PRIMER-003': 'Primer 003' };
 const caseOf = (c) => c.caseId || 'PRIMER-001';
 const usedCount = (c) => Object.keys(c.usedBy || {}).length;
 function codeStatus(c) {
@@ -224,7 +225,7 @@ let main;
 function keep(id) { const el = document.getElementById(id); const pos = el && el.selectionStart; drawTab(); const n = document.getElementById(id); if (n) { n.focus(); try { n.setSelectionRange(pos, pos); } catch (_) { /* nič */ } } }
 function drawTab() { if (!main) return; clear(main).append({ pregled: tabOverview, detektivi: tabUsers, aktivne: tabActive, rezultati: tabResults, kode: tabCodes, dnevnik: tabLogs, resitve: tabSolutions }[A.tab]()); }
 function drawAll() {
-  const nav = h('nav', { class: 'adm__nav', 'aria-label': 'Administracija' }, h('div', { style: 'padding:6px 8px 14px' }, logo()), TABS.map(([k, l, ic]) => h('button', { class: 'adm__tab', 'aria-current': A.tab === k ? 'page' : 'false', onclick: () => { A.tab = k; drawAll(); } }, icon(ic), l)), h('span', { class: 'spacer' }), h('div', { class: 'muted', style: 'padding:8px;font-size:12px;word-break:break-all' }, currentUser().email), h('button', { class: 'adm__tab', onclick: () => signOutUser() }, 'Odjava'));
+  const nav = h('nav', { class: 'adm__nav', 'aria-label': 'Administracija' }, h('div', { style: 'padding:6px 8px 4px' }, logo()), h('div', { class: 'muted', style: 'padding:0 8px 10px;font-size:12px' }, `Verzija ${VERSION}`), TABS.map(([k, l, ic]) => h('button', { class: 'adm__tab', 'aria-current': A.tab === k ? 'page' : 'false', onclick: () => { A.tab = k; drawAll(); } }, icon(ic), l)), h('span', { class: 'spacer' }), h('div', { class: 'muted', style: 'padding:8px;font-size:12px;word-break:break-all' }, currentUser().email), h('button', { class: 'adm__tab', onclick: () => signOutUser() }, 'Odjava'));
   main = h('main', { class: 'adm__main', tabindex: '-1' });
   clear(root).append(h('div', { class: 'adm' }, nav, main)); drawTab();
 }

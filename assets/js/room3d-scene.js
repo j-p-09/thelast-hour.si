@@ -155,34 +155,25 @@ export function buildScene() {
   B('globe_s', null, [-3.55, 0, -0.3], [-3.3, 0.9, -0.05], '#3a2616'); B('globe_b', null, [-3.6, 0.9, -0.35], [-3.25, 1.25, 0.0], '#3a6a8a');
   B('chess_t', null, [-3.0, 0, 0.55], [-2.4, 0.62, 1.15], '#3a2616', { decals: { '+y': { draw(g) { for (let i = 0; i < 8; i++) for (let j = 0; j < 8; j++) { g.fillStyle = (i + j) % 2 ? '#2a1a10' : '#d8c8a0'; g.fillRect(6 + i * 6, 6 + j * 6, 6, 6); } g.fillStyle = '#f0f0f0'; g.fillRect(24, 24, 5, 5); g.fillStyle = '#111'; g.fillRect(36, 30, 5, 5); } } } });
 
-  // ---- dodatna oprema za večjo sobo (samo okras: ni klikljiva) ----
-  B('sofa_b', null, [1.6, 0, 3.0], [4.4, 0.45, 3.85], '#3d4a3a'); B('sofa_k', null, [1.6, 0.45, 3.7], [4.4, 1.0, 3.85], '#3d4a3a');
-  B('sofa_l', null, [1.45, 0, 3.0], [1.6, 0.7, 3.85], '#34402f'); B('sofa_r', null, [4.4, 0, 3.0], [4.55, 0.7, 3.85], '#34402f');
-  B('ctable', null, [2.2, 0, 1.8], [3.8, 0.42, 2.5], '#4a2f1c', { top: '#2a1a10' });
-  B('ctable_book', null, [2.6, 0.42, 2.0], [2.95, 0.45, 2.3], '#7a2a2a', { on: 'ctable', solid: false });
-  B('flamp_p', null, [4.7, 0, 2.5], [4.78, 1.55, 2.58], '#b8963c', { solid: false }); B('flamp_s', null, [4.58, 1.55, 2.38], [4.9, 1.85, 2.7], '#f0dca8', { solid: false, emissive: 0.8 });
-  B('cons', null, [3.4, 0, -3.9], [5.3, 0.85, -3.45], '#3f2a1a', { top: '#2a1a10' });
-  B('vase', null, [4.1, 0.85, -3.8], [4.4, 1.15, -3.55], '#2f5f6a', { on: 'cons', solid: false });
-  B('plant', null, [-5.2, 0, 3.2], [-4.7, 0.5, 3.7], '#6a4a2a'); B('plant_l', null, [-5.25, 0.5, 3.15], [-4.65, 1.5, 3.75], '#2f6a3a', { solid: false });
-
-  // ---- razporeditev po steni (soba je večja: 11 × 8 m) ----
+  // ---- razporeditev po steni: velika soba 16 × 11 m, v kateri je prostor za tri osebe ----
+  const DX = 4, DZ = 2.5;
   const MOVE = [
-    [['fp', 'fp_mantel', 'fp_breast', 'fp_uv', 'det', 'det_pick', 'safe', 'paint', 'arm_seat', 'arm_back', 'arm_l', 'arm_r', 'arm_watch', 'arm_pick', 'stable', 'pillbox', 'glasses'], 0, -1],
-    [['books', 'ladder'], -1.5, -1],
-    [['wcase', 'bar', 'decanter', 'glass1', 'glass2', 'bar_pick'], 1.5, 0],
-    [['win', 'curt1', 'curt2', 'rod', 'cab', 'radio', 'card', 'clock', 'globe_s', 'globe_b'], -1.5, 0],
-    [['door', 'door_f', 'door_f2', 'door_f3', 'photos', 'cal'], 0, 1],
+    [['fp', 'fp_mantel', 'fp_breast', 'fp_uv', 'det', 'det_pick', 'safe', 'paint', 'arm_seat', 'arm_back', 'arm_l', 'arm_r', 'arm_watch', 'arm_pick', 'stable', 'pillbox', 'glasses'], 0, -DZ],
+    [['books', 'ladder'], -DX, -DZ],
+    [['wcase', 'bar', 'decanter', 'glass1', 'glass2', 'bar_pick'], DX, 0],
+    [['win', 'curt1', 'curt2', 'rod', 'cab', 'radio', 'card', 'clock', 'globe_s', 'globe_b'], -DX, 0],
+    [['door', 'door_f', 'door_f2', 'door_f3', 'photos', 'cal'], 0, DZ],
   ];
-  for (const [ids, dx, dz] of MOVE) for (const b of boxes) if (ids.includes(b.id)) { b.min = [b.min[0] + dx, b.min[1], b.min[2] + dz]; b.max = [b.max[0] + dx, b.max[1], b.max[2] + dz]; if (b.off) { const o = b.off; b.off = (st) => o(st); } }
+  for (const [ids, dx, dz] of MOVE) for (const b of boxes) if (ids.includes(b.id)) { b.min = [b.min[0] + dx, b.min[1], b.min[2] + dz]; b.max = [b.max[0] + dx, b.max[1], b.max[2] + dz]; }
 
   const lights = [
     { name: 'desk', pos: [2.17, 1.25, 0.42], color: [1.0, 0.78, 0.45], intensity: 1.25, range: 6.5 },
-    { name: 'fire', pos: [0, 0.7, -3.2], color: [1.0, 0.5, 0.2], intensity: 0.9, range: 5.0 },
-    { name: 'moon', pos: [-4.9, 2.0, 0.0], color: [0.45, 0.6, 1.0], intensity: 0.7, range: 7.5 },
-    { name: 'ceil', pos: [0, 3.0, 0.0], color: [1.0, 0.85, 0.65], intensity: 0.4, range: 9 },
-    { name: 'ceil2', pos: [-3.5, 3.0, 2.0], color: [1.0, 0.85, 0.65], intensity: 0.3, range: 8 },
-    { name: 'ceil3', pos: [3.5, 3.0, -2.0], color: [1.0, 0.85, 0.65], intensity: 0.3, range: 8 },
-    { name: 'floor', pos: [4.74, 1.6, 2.54], color: [1.0, 0.8, 0.5], intensity: 0.9, range: 5.5 },
+    { name: 'fire', pos: [0, 0.7, -2.2 - DZ], color: [1.0, 0.5, 0.2], intensity: 0.9, range: 5.5 },
+    { name: 'moon', pos: [-4 - DX, 2.0, 0.0], color: [0.45, 0.6, 1.0], intensity: 0.7, range: 8 },
+    { name: 'ceil', pos: [0, 3.0, 0.0], color: [1.0, 0.85, 0.65], intensity: 0.4, range: 10 },
+    { name: 'ceil2', pos: [-5, 3.0, 2.5], color: [1.0, 0.85, 0.65], intensity: 0.35, range: 9 },
+    { name: 'ceil3', pos: [5, 3.0, -2.5], color: [1.0, 0.85, 0.65], intensity: 0.35, range: 9 },
+    { name: 'ceil4', pos: [5, 3.0, 3.0], color: [1.0, 0.85, 0.65], intensity: 0.3, range: 9 },
   ];
-  return { room: { w: 11, d: 8, h: 3.2, floor: '#6a4a30', wall: '#7b4343', wainscot: '#3a2418', ceiling: '#a89f8e' }, boxes, lights, ambient: 0.5, spawn: { x: -2.6, z: 2.9, yaw: 0.5 } };
+  return { room: { w: 16, d: 11, h: 3.2, floor: '#6a4a30', wall: '#7b4343', wainscot: '#3a2418', ceiling: '#a89f8e' }, boxes, lights, ambient: 0.5, spawn: { x: -2.6, z: 4.2, yaw: 0.45 } };
 }

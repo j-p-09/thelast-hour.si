@@ -2,7 +2,7 @@
 export const CASE2_META = {
   id: 'PRIMER-002', no: '002', title: 'PRIMER 002: ZAKLENJENA PISARNA',
   subtitle: 'Soba, v kateri je vsak predmet priča.',
-  durationMin: 60, hintPenalty: 40, wrongPenalty: 100, maxAccusations: 3, accuseOpenFound: 16, totalClues: 28, accuseOpenSec: 600,
+  durationMin: 60, hintPenalty: 40, wrongPenalty: 100, maxAccusations: 3, accuseOpenFound: 16, totalClues: 28, accuseOpenSec: 600, superHints: 3, superPenalty: 30, locks: 4,
   briefing: [
     'V noči s sobote, 17. oktobra, na nedeljo so v zaklenjeni pisarni v vili našli Leona Marolta (67), lastnika dražbene hiše. Vrata so bila zaklenjena od znotraj, ključ je ostal v ključavnici, okno je bilo zapahnjeno.',
     'Vzrok smrti: zastrupitev z ogljikovim monoksidom. Telo so odpeljali; soba je ostala tak, kot so jo našli. Vi ste v njej.',
@@ -19,7 +19,7 @@ export const CASE2_META = {
   rules: [
     'Preiskava traja natanko 60 minut. Čas meri strežnik.',
     'Prostor lahko deli največ trije detektivi. Odkritja, predmeti in rešene ključavnice so skupni.',
-    'Vsak namig stane 40 točk. Končno obtožbo lahko oddate največ trikrat; vsaka napačna stane 100 točk.',
+    'Vsak namig stane 40 točk, vsak od treh super namigov 30 točk. Končno obtožbo lahko oddate največ trikrat; vsaka napačna stane 100 točk.',
     'Obtožba se odklene, ko ekipa odkrije 16 sledi ali ko ostane manj kot 10 minut.',
   ],
 };
@@ -36,4 +36,36 @@ export const ACCUSE_FORM = [
   { id: 'method', label: 'Način izvedbe', options: [['W1', 'Onesposobljen detektor CO in skoraj zaprta dimna zaklopka, ko Leona ni bilo v sobi; zvečer se je v zaklenjeni sobi zastrupil z ogljikovim monoksidom'], ['W2', 'Detektor in zaklopko je med prepirom onesposobil Žiga, ko je bil sam z očetom'], ['W3', 'Zamenjane tablete: smrtni odmerek zdravila za srce'], ['W4', 'Strup v viskiju v karafi'], ['W5', 'Leona je od zunaj zaklenil z rezervnim ključem in ga pustil v dimu']] },
   { id: 'time', label: 'Čas dejanja (sabotaže)', options: [['T1', '15:12 do 15:13'], ['T2', '20:31 do 21:05'], ['T3', '17:10 do 17:19'], ['T4', '19:40 do 19:46'], ['T5', '22:17']] },
   { id: 'contradiction', label: 'Odločilno protislovje (neobvezno)', optional: true, options: [['C1', 'Maja trdi, da Leon sobe ni zapustil niti za minuto; ključavnica, senzor gibanja in telefon kažejo, da ga od 15:09 do 15:27 ni bilo.'], ['C2', 'Žiga trdi, da denarja ni prosil; e-pošta kaže zahtevo za 40.000 €.'], ['C3', 'Rok trdi, da z Leonom od srede ni govoril; telefon beleži 17-minutni klic ob 15:09.'], ['C4', 'Katarina trdi, da o oporoki ne ve ničesar; odvetnik pravi, da je v sredo klicala in spraševala.'], ['C5', 'Anton trdi, da v sobo ni vstopil; ključavnica kaže vstop ob 19:40.']] },
+];
+
+// ---------- PRIMER 003 ----------
+export const CASE3_META = {
+  id: 'PRIMER-003', no: '003', title: 'PRIMER 003: SOBA 13', subtitle: 'Sanatorij sv. Helene. Nekaj v njem še ni končalo.', horror: true,
+  durationMin: 60, hintPenalty: 60, wrongPenalty: 150, maxAccusations: 3, accuseOpenFound: 12, accuseOpenSec: 480, totalClues: 19, superHints: 2, superPenalty: 50, locks: 7,
+  briefing: [
+    'Sanatorij sv. Helene je zaprt od leta 1979. Lokalni pravijo, da se v sobi 13 ponoči sliši dihanje. Pred tremi dnevi je neznanec predal policiji zvezek brez podpisa: »Marta ni umrla za pljučnico.«',
+    'Vstopili ste skozi izhod, ki se je za vami zaprl. Ključavnica je zarjavela in se ne premakne, dokler ne poveste, kaj se je zgodilo.',
+    'Pred vami so tri sobe: ordinacija, soba 13 in kapela. Vrata med njimi se odprejo šele, ko rešite njihove ključavnice. Nazaj lahko greste kadar koli.',
+    'Svetilka je vaš prijatelj: baterije so omejene. Nekaj v stavbi ve, da ste tu. Imate natanko 60 minut.',
+  ],
+  controls: [
+    ['Premik', 'W A S D ali puščice (Shift = hitreje)'], ['Pogled', 'povlecite z miško ali prstom; Q / E obrača'], ['Pregled predmeta', 'klik ali dotik (ali Presledek)'], ['Svetilka', 'tipka F (porablja baterijo)'],
+  ],
+  rules: [
+    'Preiskava traja natanko 60 minut. Čas meri strežnik.', 'Prostor lahko deli največ trije detektivi. Odkritja, predmeti in rešene ključavnice so skupni.',
+    'Namig stane 60 točk, super namig 50 točk, napačna obtožba 150 točk. Super namigi so le 2.', 'Primer vsebuje zvoke in utripajočo svetlobo. Vklopite lahko »Blag način«.',
+  ],
+};
+export const SUSPECTS3 = [
+  { id: 'S1', name: 'dr. Anton Vilfan', age: 41, job: 'Vodja oddelka za živčne bolezni', statement: '»Vsako zdravljenje je bilo po predpisih. Pacientka je umrla zaradi pljučnice.«' },
+  { id: 'S2', name: 'sestra Berta Kos', age: 38, job: 'Glavna medicinska sestra', statement: '»Tisto noč sem bila doma. Papirje sem izpolnila, kot je zahtevala služba.«' },
+  { id: 'S3', name: 'Franc Kranjc', age: 55, job: 'Direktor sanatorija', statement: '»O vsem sem izvedel šele po dogodku. Bil sem na dopustu.«' },
+  { id: 'S4', name: 'Mirko Brezar', age: 47, job: 'Vrtnar', statement: '»Vrta nisem zapustil. S sanatorijem nimam opravka.«' },
+];
+export const ACCUSE_FORM3 = [
+  { id: 'culprit', label: 'Kdo je vodil zdravljenje, ki je ubilo Marto', options: [['S1', 'dr. Anton Vilfan, zdravnik'], ['S2', 'sestra Berta Kos'], ['S3', 'direktor Franc Kranjc'], ['S4', 'vrtnar Mirko Brezar']] },
+  { id: 'method', label: 'Vzrok smrti', options: [['M1', 'Elektrošok: napetost, višja od varne, ob 6. seansi'], ['M2', 'Pljučnica (uradni vzrok)'], ['M3', 'Zastrupitev z zdravili'], ['M4', 'Zadušitev v postelji']] },
+  { id: 'cover', label: 'Kdo je ponaredil papirje', options: [['B1', 'Sestra Berta Kos'], ['B2', 'Direktor Kranjc'], ['B3', 'Vrtnar Brezar'], ['B4', 'Nihče: napaka v evidenci']] },
+  { id: 'grave', label: 'Kje leži Marta', options: [['G1', 'Pod oltarjem v kapeli'], ['G2', 'V vrtu za sanatorijem'], ['G3', 'V kurilnici v kleti'], ['G4', 'V reki za zdraviliščem']] },
+  { id: 'contradiction', label: 'Odločilno protislovje (neobvezno)', optional: true, options: [['C1', 'Uradno potrdilo pravi pljučnica; karton in dnevnik naprave kažeta elektrošok 110 V ob 3:17.'], ['C2', 'Berta trdi, da je bila tisto noč doma; zvezek priča, da je bila v sanatoriju.'], ['C3', 'Kranjc trdi, da je bil na dopustu; pismo iz spovednice kaže, da je vedel.'], ['C4', 'Mirko trdi, da vrta ni zapustil; lopata ima blato izpod kapele.']] },
 ];

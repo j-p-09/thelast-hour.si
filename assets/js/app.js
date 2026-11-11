@@ -5,6 +5,7 @@ import { screens } from './screens-public.js';
 import { playerScreens } from './screens-player.js';
 import { roomScreen } from './investigation.js';
 import { room3dScreen } from './room3d.js';
+import { VERSION } from './version.js';
 
 export const S = { user: null, profile: null, profileLoaded: false, activeId: null, cleanup: [], caseData: null };
 const root = document.getElementById('app');
@@ -36,7 +37,7 @@ function shell(content, { bare = false, wide = false } = {}) {
   }
   const main = h('main', { id: 'main', class: 'view-enter', tabindex: '-1' }, content);
   root.append(main);
-  if (!bare) root.append(h('footer', { class: 'footer' }, 'THE LAST HOUR · Vsi liki, ustanove in dogodki so izmišljeni. ', h('a', { href: 'administrator.html' }, 'Administratorski dostop')));
+  if (!bare) root.append(h('footer', { class: 'footer' }, 'THE LAST HOUR · Vsi liki, ustanove in dogodki so izmišljeni. ', h('a', { href: 'administrator.html' }, 'Administratorski dostop'), h('span', { class: 'ver' }, ` · Verzija ${VERSION}`)));
   return main;
 }
 
@@ -61,7 +62,7 @@ const ROUTES = [
   { re: /^\/nadzorna-plosca$/, auth: 'approved', fn: () => playerScreens.dashboard() },
   { re: /^\/profil$/, auth: 'approved', fn: () => playerScreens.profile() },
   { re: /^\/lobby\/([-\w]+)$/, auth: 'approved', fn: (m) => playerScreens.lobby(m[1]) },
-  { re: /^\/preiskava\/([-\w]+)$/, auth: 'approved', fn: async (m) => { let core = null; try { core = await getOnce(`investigations/${m[1]}/core`); } catch (_) { /* privzeto: primer 001 */ } return core && core.caseId === 'PRIMER-002' ? room3dScreen(m[1]) : roomScreen(m[1]); } },
+  { re: /^\/preiskava\/([-\w]+)$/, auth: 'approved', fn: async (m) => { let core = null; try { core = await getOnce(`investigations/${m[1]}/core`); } catch (_) { /* privzeto: primer 001 */ } return core && (core.caseId === 'PRIMER-002' || core.caseId === 'PRIMER-003') ? room3dScreen(m[1], core.caseId) : roomScreen(m[1]); } },
   { re: /^\/rezultat\/([-\w]+)$/, auth: 'approved', fn: (m) => playerScreens.result(m[1]) },
 ];
 

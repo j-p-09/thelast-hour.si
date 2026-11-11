@@ -2,7 +2,7 @@
 // sencenje po ploskvah, svetlobni viri, svetilka, UV-način, trki, izbiranje predmetov z žarkom.
 // Koordinate: x desno, y gor, z proti igralcu (sever = -z). Mere v metrih. Kot kamere (yaw) 0 = pogled proti severu (-z).
 
-import { drawAvatar2D } from './room3d-avatar.js';
+import { drawAvatar2D, drawGhost2D } from './room3d-avatar.js';
 
 const NEAR = 0.07;
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
@@ -137,7 +137,7 @@ export function createEngine(canvas, scene, opts = {}) {
 
   // ---------- osvetlitev v zagonu ----------
   function dynLight(P, N, base) {
-    let r = base[0] * S.gain, gg = base[1] * S.gain, b = base[2] * S.gain;
+    const GN = S.gain * (S.lm == null ? 1 : S.lm); let r = base[0] * GN, gg = base[1] * GN, b = base[2] * GN;
     if (S.uv) { r = 0.16; gg = 0.07; b = 0.34; }
     const dx = P[0] - S.pos.x, dy = P[1] - S.pos.y, dz = P[2] - S.pos.z;
     const d = Math.hypot(dx, dy, dz) || 1e-6;
@@ -255,6 +255,7 @@ export function createEngine(canvas, scene, opts = {}) {
       const L = dynLight([q.x, 1.0, q.z], [0, 0, 1], staticLight([q.x, 1.0, q.z], [0, 0, 1])); const light = clamp((L[0] + L[1] + L[2]) / 3 * 1.05 + 0.18, 0.4, 1.3);
       list.push({ d: dx * dx + dz * dz - 0.15, run() { drawAvatar2D(g, q.av, f[0], f[1], hpx, { t: S.t + q.phase, walk: q.walk, name: fc[2] < 14 ? q.name : null, light }); } });
     }
+    if (S.ghost) { const q = S.ghost, dx = q.x - S.pos.x, dz = q.z - S.pos.z; const fc = toCam([q.x, 0, q.z]); if (fc[2] > 0.35) { const hc = toCam([q.x, 1.8, q.z]); const f = proj(fc), hp = proj(hc); const hpx = f[1] - hp[1]; if (hpx > 4) list.push({ d: dx * dx + dz * dz - 0.1, run() { drawGhost2D(g, f[0], f[1], hpx, { alpha: q.alpha, t: S.t }); } }); } }
     list.sort((p, q) => q.d - p.d);
     for (const it of list) it.run();
     // obris predmeta pod kazalcem
@@ -431,6 +432,8 @@ export function createEngine(canvas, scene, opts = {}) {
       for (const k of [...S.peers.keys()]) if (!seen.has(k)) S.peers.delete(k);
     },
     setGain(v) { S.gain = v; },
+    setLightMul(v) { S.lm = v; },
+    setGhost(gh) { S.ghost = gh || null; },
     setFlash(on) { S.flash = !!on; if (on) S.uv = false; },
     setUv(on) { S.uv = !!on; if (on) S.flash = false; },
     look(yaw, pitch) { S.yaw = yaw; S.pitch = pitch || 0; },
