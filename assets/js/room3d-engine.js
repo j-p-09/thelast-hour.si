@@ -114,13 +114,15 @@ export function createEngine(canvas, scene, opts = {}) {
 
   // ---------- projekcija ----------
   let fwd, right, up, focal;
+  let camPos = [0, 0, 0];
   function setupCamera() {
     const cy = Math.cos(S.yaw), sy = Math.sin(S.yaw), cp = Math.cos(S.pitch), sp = Math.sin(S.pitch);
     fwd = [sy * cp, sp, -cy * cp]; right = [cy, 0, sy]; up = [-sy * sp, cp, cy * sp];
     focal = (S.W / 2) / tanHalf;
+    camPos = S.third ? [clamp(S.pos.x - fwd[0] * 2.7, x0 + 0.15, x1 - 0.15), Math.max(0.5, S.pos.y + 0.28 - fwd[1] * 2.7), clamp(S.pos.z - fwd[2] * 2.7, z0 + 0.15, z1 - 0.15)] : [S.pos.x, S.pos.y, S.pos.z];
   }
   const toCam = (p) => {
-    const dx = p[0] - S.pos.x, dy = p[1] - S.pos.y, dz = p[2] - S.pos.z;
+    const dx = p[0] - camPos[0], dy = p[1] - camPos[1], dz = p[2] - camPos[2];
     return [dx * right[0] + dz * right[2], dx * up[0] + dy * up[1] + dz * up[2], dx * fwd[0] + dy * fwd[1] + dz * fwd[2]];
   };
   const proj = (c) => [S.W / 2 + (c[0] / c[2]) * focal, S.H / 2 - (c[1] / c[2]) * focal];
@@ -253,14 +255,15 @@ export function createEngine(canvas, scene, opts = {}) {
       const dx = q.x - S.pos.x, dz = q.z - S.pos.z; const fc = toCam([q.x, 0, q.z]); if (fc[2] < 0.35) continue;
       const hc = toCam([q.x, 1.78, q.z]); const f = proj(fc), hp = proj(hc); const hpx = f[1] - hp[1]; if (hpx < 4 || f[0] < -200 || f[0] > S.W + 200) continue;
       const L = dynLight([q.x, 1.0, q.z], [0, 0, 1], staticLight([q.x, 1.0, q.z], [0, 0, 1])); const light = clamp((L[0] + L[1] + L[2]) / 3 * 1.05 + 0.18, 0.4, 1.3);
-      list.push({ d: dx * dx + dz * dz - 0.15, run() { drawAvatar2D(g, q.av, f[0], f[1], hpx, { t: S.t + q.phase, walk: q.walk, name: fc[2] < 14 ? q.name : null, light }); } });
+      list.push({ d: dx * dx + dz * dz - 0.15, run() { drawAvatar2D(g, q.av, f[0], f[1], hpx, { t: S.t + q.phase, walk: q.walk, name: fc[2] < 14 ? q.name : null, light, cop: S.copPeers }); } });
     }
+    if (S.third && S.self) { const n = S.self; const dx = n.x - camPos[0], dz = n.z - camPos[2]; const fc = toCam([n.x, 0, n.z]); if (fc[2] > 0.35) { const hc = toCam([n.x, 1.78, n.z]); const f = proj(fc), hp = proj(hc); const hpx = f[1] - hp[1]; const L = dynLight([n.x, 1.0, n.z], [0, 0, 1], staticLight([n.x, 1.0, n.z], [0, 0, 1])); const light = clamp((L[0] + L[1] + L[2]) / 3 * 1.05 + 0.25, 0.45, 1.3); list.push({ d: dx * dx + dz * dz - 0.15, run() { drawAvatar2D(g, n.av, f[0], f[1], hpx, { t: S.t, walk: n.walk, light, cop: true, armed: n.armed, back: true }); } }); } }
     for (const n of S.npcs) {
       const dx = n.x - S.pos.x, dz = n.z - S.pos.z; const fc = toCam([n.x, 0, n.z]); if (fc[2] < 0.35) continue;
       const hc = toCam([n.x, 1.78, n.z]); const f = proj(fc), hp = proj(hc); const hpx = f[1] - hp[1]; if (hpx < 3 || f[0] < -200 || f[0] > S.W + 200) continue;
       const L = dynLight([n.x, 1.0, n.z], [0, 0, 1], staticLight([n.x, 1.0, n.z], [0, 0, 1])); const light = clamp((L[0] + L[1] + L[2]) / 3 * 1.05 + 0.22, 0.4, 1.3);
       list.push({ d: dx * dx + dz * dz - 0.15, run() {
-        drawAvatar2D(g, n.av, f[0], f[1], hpx, { t: S.t + (n.phase || 0), walk: n.walk ? 1 : 0, name: null, light });
+        drawAvatar2D(g, n.av, f[0], f[1], hpx, { t: S.t + (n.phase || 0), walk: n.walk ? 1 : 0, name: null, light, lying: n.lying || 0, side: n.side || 1, armed: n.armed, cop: n.cop, cuffed: n.cuffed });
         if (n.flash > 0) { const r = Math.max(3, hpx * 0.07); g.fillStyle = 'rgba(255,220,120,.95)'; g.beginPath(); g.arc(f[0] + hpx * 0.06, f[1] - hpx * 0.52, r * (1 + n.flash), 0, 7); g.fill(); }
         if (n.hurt > 0) { g.fillStyle = `rgba(255,30,30,${Math.min(0.6, n.hurt)})`; g.fillRect(f[0] - hpx * 0.14, f[1] - hpx * 0.95, hpx * 0.28, hpx * 0.8); }
       } });
@@ -312,7 +315,7 @@ export function createEngine(canvas, scene, opts = {}) {
     const nx = ((sx - S.W / 2) / (S.W / 2)) * tanHalf, ny = -((sy - S.H / 2) / (S.W / 2)) * tanHalf;
     let d = [fwd[0] + right[0] * nx + up[0] * ny, fwd[1] + right[1] * nx + up[1] * ny, fwd[2] + right[2] * nx + up[2] * ny];
     const l = Math.hypot(d[0], d[1], d[2]); d = [d[0] / l, d[1] / l, d[2] / l];
-    return { o: [S.pos.x, S.pos.y, S.pos.z], d };
+    return { o: [camPos[0], camPos[1], camPos[2]], d };
   }
   function rayBox(o, d, a, c) {
     let tmin = 0, tmax = 1e9;
@@ -445,6 +448,8 @@ export function createEngine(canvas, scene, opts = {}) {
     },
     setGain(v) { S.gain = v; },
     setFps(on) { S.fps = !!on; if (on) S.auto = null; },
+    setThird(on) { S.third = !!on; },
+    setSelf(s) { S.self = s; },
     setNpcs(list) { S.npcs = list || []; },
     setSpeed(v) { S.speedMul = v; },
     setLightMul(v) { S.lm = v; },

@@ -1,10 +1,10 @@
 // Primer 004: nočna vožnja do stavbe (luči, intervencijske luči, sirena, promet, ki se umika).
-import { ROAD_CARS, carPos } from './room3d-scene4.js';
+import { ROAD_CARS, carPos, roadC, roadK, ROAD_TOTAL } from './room3d-scene4.js';
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 
 export function createDrive(o) {
   // o: { stage, getEng, sfx, toast, vehicle:'swat'|'civil', total, onArrive, role }
-  const total = o.total || 1100; const D = { dist: 0, lat: 0, siren: 0, t: 0, v: 0 };
+  const total = o.total || ROAD_TOTAL; const D = { dist: 0, lat: 0, siren: 0, t: 0, v: 0 };
   const L = { head: true, blue: false, siren: false }; let running = false, raf = 0, last = 0, shake = 0, crashCd = 0, arrived = false, sirenK = 0;
   const swat = o.vehicle === 'swat';
   const root = document.createElement('div'); root.className = 'drv';
@@ -21,6 +21,15 @@ export function createDrive(o) {
   }
   const onKey = (e) => { if (!running || (e.target && /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName))) return; if (e.code === 'KeyH') toggle('head'); else if (e.code === 'KeyL') toggle('blue'); else if (e.code === 'KeyK') toggle('siren'); else if (e.code === 'KeyG') toggle('horn'); };
   window.addEventListener('keydown', onKey);
+  const onLook = (e) => { if (!running || !D.out) return; const E = o.getEng(); if (!E || !document.pointerLockElement) return; E.S.yaw += (e.movementX || 0) * 0.0022; E.S.pitch = clamp(E.S.pitch - (e.movementY || 0) * 0.0022, -1, 1); };
+  const onClick = (e) => { if (running && D.out && !document.pointerLockElement && !(e.target.closest && e.target.closest('button'))) { const c = document.querySelector('.r3__canvas'); if (c && c.requestPointerLock) { try { c.requestPointerLock(); } catch (_) { /* nič */ } } } };
+  window.addEventListener('pointermove', onLook); o.stage.addEventListener('pointerdown', onClick);
+  const hint = document.createElement('div'); hint.className = 'drv__hint'; root.appendChild(hint);
+  function pushOut(E) { const p = E.S.pos, lx = -(D.lat || 0) * 0 ; const hw = 1.15, z0 = 14.9, z1 = 19.5; if (Math.abs(p.x) < hw && p.z > z0 && p.z < z1) { if (Math.abs(p.x) / hw > Math.min(p.z - z0, z1 - p.z) / 2.3) p.x = (p.x >= 0 ? 1 : -1) * hw; else p.z = p.z - z0 < z1 - p.z ? z0 : z1; } }
+  function beginExit() {
+    if (arrived || D.out) return; arrived = true; D.v = 0; o.sfx.engine(0, false); o.sfx.sirenOff(); L.siren = false; hint.classList.remove('on');
+    o.sfx.door(); setTimeout(() => { o.sfx.door(); D.out = true; root.classList.add('out'); const E = o.getEng(); if (E) { E.S.pos.x = 1.9; E.S.pos.z = 16.2; E.S.yaw = -1.1; E.S.pitch = 0; E.setSpeed(1); E.setThird && 0; } o.toast('Izstopili ste. Ekipa se zbira pred vhodom.', 'ok', 3200); o.onArrive && o.onArrive(); }, 900);
+  }
   const g = dash.getContext('2d');
   function drawDash(w, h, now) {
     g.clearRect(0, 0, w, h); const s = Math.min(w, h) / 600;
@@ -39,25 +48,35 @@ export function createDrive(o) {
   function frame(now) {
     if (!running) return; const dt = Math.min(0.05, (now - last) / 1000); last = now; D.t += dt; const E = o.getEng();
     const k = E ? E.S.keys : new Set(); const gas = k.has('KeyW') || k.has('ArrowUp') ? 1 : 0, brk = k.has('KeyS') || k.has('ArrowDown') ? 1 : 0, st = (k.has('KeyD') ? 1 : 0) - (k.has('KeyA') ? 1 : 0);
-    const vmax = swat ? 26 : 32; D.v = clamp(D.v + (gas * (swat ? 7 : 9) - brk * 18 - 1.2 - D.v * 0.04) * dt, 0, vmax); D.steer = (D.steer || 0) + (st - (D.steer || 0)) * Math.min(1, dt * 5);
-    D.lat = clamp(D.lat + D.steer * Math.min(D.v, 18) * 0.28 * dt * 3, -4.2, 4.2); D.dist += D.v * dt;
+    const vmax = swat ? 26 : 32; D.v = clamp(D.v + (gas * (swat ? 7 : 9) - brk * 18 - 1.2 - D.v * 0.04) * dt, 0, vmax); D.steer = (D.steer || 0) + (st - (D.steer || 0)) * Math.min(1, dt * 5); D.slope = (roadC(D.dist + 8) - roadC(D.dist)) / 8;
+    if (D.out) { D.v = 0; } else {
+      const kc = roadK(D.dist); D.lat = D.lat + D.steer * Math.min(D.v, 18) * 0.28 * dt * 3 - kc * D.v * D.v * 1.1 * dt; // sredobežna sila v ovinku
+      if (Math.abs(D.lat) > 5.3) { D.v *= 1 - Math.min(0.9, dt * 1.8); shake = Math.max(shake, 0.25); if (crashCd <= 0 && Math.abs(D.lat) > 6.6 && D.v > 8) { o.sfx.crash(); crashCd = 1.5; o.toast('Zapeljali ste s ceste! Vrnite se na vozišče.', 'warn', 2400); D.v *= 0.4; } }
+      D.lat = clamp(D.lat, -7.4, 7.4);
+      const gate = total + 3; D.dist += D.v * dt;
+      if (D.dist >= gate) { if (D.v > 6) { o.sfx.crash(); shake = 0.8; o.toast('Trk v zaporo! Ustavite se prej.', 'warn', 2200); } D.dist = gate; D.v = 0; }
+    }
+    if (!D.out) o.sfx.engine(D.v, true);
     sirenK += ((L.siren ? 1 : 0) - sirenK) * Math.min(1, dt * 2.5); D.siren = sirenK; crashCd -= dt;
     // trk
     if (crashCd <= 0) for (const c of ROAD_CARS) { const p = carPos(c, D); if (Math.abs(p.x) < 1.75 && p.zBack > 14.8 && p.zFront < 17.6) { D.v *= 0.2; shake = 0.6; crashCd = 1.2; o.sfx.crash(); o.toast('Trk! Vklopite sireno ali zapeljite mimo.', 'warn', 2200); break; } }
     shake = Math.max(0, shake - dt);
-    if (E) { E.S.pos.x = 0; E.S.pos.z = 17; E.S.yaw = clamp((D.steer || 0) * 0.05, -0.1, 0.1); E.S.pitch = -0.04; E.setState({ ...(E.S.state || {}), drive: { dist: D.dist, lat: D.lat, siren: D.siren } }); }
+    if (E) { E.S.pos.x = 0; E.S.pos.z = 17; if (!D.out) { E.S.pos.x = 0; E.S.pos.z = 17; E.S.yaw = clamp((D.steer || 0) * 0.05 - D.slope * 0.5, -0.5, 0.5); E.S.pitch = -0.04; } else pushOut(E); E.setState({ ...(E.S.state || {}), drive: { dist: D.dist, lat: D.lat, siren: D.siren, out: D.out } }); }
     const pct = clamp(D.dist / total, 0, 1); bar.style.width = `${pct * 100}%`; spd.textContent = String(Math.round(D.v * 3.6)); left.textContent = `${Math.max(0, Math.round(total - D.dist))} m`;
     // utripanje intervencijskih luči po zaslonu
     if (L.blue) { const ph = Math.floor(now / 140) % 2; flash.style.background = swat ? (ph ? 'radial-gradient(ellipse at 15% 20%, rgba(255,30,30,.3), transparent 55%), radial-gradient(ellipse at 85% 90%, rgba(40,70,255,.14), transparent 50%)' : 'radial-gradient(ellipse at 85% 20%, rgba(40,70,255,.3), transparent 55%), radial-gradient(ellipse at 15% 90%, rgba(255,30,30,.14), transparent 50%)') : (ph ? 'radial-gradient(ellipse at 10% 100%, rgba(255,30,30,.35), transparent 40%)' : 'radial-gradient(ellipse at 90% 100%, rgba(40,70,255,.35), transparent 40%)'); flash.style.opacity = '1'; } else flash.style.opacity = '0';
     root.style.transform = shake > 0 ? `translate(${(Math.random() - 0.5) * 14 * shake}px, ${(Math.random() - 0.5) * 10 * shake}px)` : '';
     const r = dash.getBoundingClientRect(); const w = Math.round(r.width), h = Math.round(r.height); if (dash.width !== w || dash.height !== h) { dash.width = w; dash.height = h; } drawDash(w, h, now);
-    if (D.dist >= total && !arrived) { arrived = true; o.onArrive && o.onArrive(); }
+    left.textContent = D.out ? '' : `${Math.max(0, Math.round(total - D.dist))} m`;
+    if (!D.out && !arrived && D.dist > total - 24 && D.v < 0.4 && (k.has('KeyE') || D.stopT > 1.4)) beginExit();
+    if (!D.out && D.dist > total - 24 && D.v < 0.4) { D.stopT = (D.stopT || 0) + dt; hint.textContent = 'Vozilo stoji: pritisnite E in izstopite'; hint.classList.add('on'); } else { D.stopT = 0; if (!D.out) hint.classList.remove('on'); }
+    if (!D.out && D.dist > total - 24 && D.v >= 0.4) { hint.textContent = 'Ustavite vozilo (S)'; hint.classList.add('on'); }
     raf = requestAnimationFrame(frame);
   }
   return {
     D, start() { running = true; last = performance.now(); const E = o.getEng(); if (E) { E.setFps(true); E.setSpeed(0); E.setFlash(true); } root.classList.add('on'); toggle('head'); toggle('head'); cancelAnimationFrame(raf); raf = requestAnimationFrame(frame); },
-    stop() { running = false; cancelAnimationFrame(raf); o.sfx.sirenOff(); root.classList.remove('on'); const E = o.getEng(); if (E) { E.setFlash(false); E.setSpeed(1); } },
-    destroy() { this.stop(); window.removeEventListener('keydown', onKey); root.remove(); },
+    stop() { running = false; cancelAnimationFrame(raf); o.sfx.sirenOff(); o.sfx.engine(0, false); root.classList.remove('on'); const E = o.getEng(); if (E) { E.setFlash(false); E.setSpeed(1); } },
+    destroy() { this.stop(); window.removeEventListener('keydown', onKey); window.removeEventListener('pointermove', onLook); o.stage.removeEventListener('pointerdown', onClick); if (document.pointerLockElement && document.exitPointerLock) document.exitPointerLock(); root.remove(); },
     setVehicle() {}, lights: L,
   };
 }

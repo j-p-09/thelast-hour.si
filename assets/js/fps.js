@@ -5,7 +5,7 @@ const rand = (a, b) => a + Math.random() * (b - a);
 
 // ---------- zvoki (sintetizirani) ----------
 export function makeSfx() {
-  const AC = window.AudioContext || window.webkitAudioContext; let ctx = null, master = null, siren = null;
+  const AC = window.AudioContext || window.webkitAudioContext; let ctx = null, master = null, siren = null, eng0 = null;
   const init = () => { if (ctx || !AC) return; try { ctx = new AC(); master = ctx.createGain(); master.gain.value = 0.8; const c = ctx.createDynamicsCompressor(); master.connect(c).connect(ctx.destination); } catch (_) { ctx = null; } if (ctx && ctx.state === 'suspended') ctx.resume(); };
   const noise = (sec) => { const b = ctx.createBuffer(1, Math.max(1, ctx.sampleRate * sec), ctx.sampleRate), d = b.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1; return b; };
   const burst = (t0, dur, peak, freq, q = 0.8, type = 'lowpass') => { const s = ctx.createBufferSource(); s.buffer = noise(dur + 0.1); const f = ctx.createBiquadFilter(); f.type = type; f.frequency.value = freq; f.Q.value = q; const g = ctx.createGain(); g.gain.setValueAtTime(peak, t0); g.gain.exponentialRampToValueAtTime(0.0003, t0 + dur); s.connect(f).connect(g).connect(master); s.start(t0); s.stop(t0 + dur + 0.05); };
@@ -24,6 +24,7 @@ export function makeSfx() {
     crash() { if (!ok()) return; burst(ctx.currentTime, 0.5, 0.9, 900); tone(150, 40, 0.4, 0.8, 'sawtooth'); },
     horn() { if (!ok()) return; tone(420, 420, 0.4, 0.3, 'square'); tone(520, 520, 0.4, 0.25, 'square'); },
     sirenOn() { if (!ok() || siren) return; const o = ctx.createOscillator(); o.type = 'sawtooth'; const lfo = ctx.createOscillator(); lfo.frequency.value = 0.55; lfo.type = 'triangle'; const lg = ctx.createGain(); lg.gain.value = 330; lfo.connect(lg).connect(o.frequency); o.frequency.value = 880; const f = ctx.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 1100; f.Q.value = 0.6; const g = ctx.createGain(); g.gain.value = 0.18; o.connect(f).connect(g).connect(master); o.start(); lfo.start(); siren = { o, lfo, g }; },
+    engine(v, on) { if (!ok()) return; if (!on) { if (eng0) { try { eng0.g.gain.value = 0; eng0.o.stop(); eng0.o2.stop(); } catch (_) { /* nič */ } eng0 = null; } return; } if (!eng0) { const o = ctx.createOscillator(), o2 = ctx.createOscillator(), g = ctx.createGain(), f = ctx.createBiquadFilter(); o.type = 'sawtooth'; o2.type = 'square'; f.type = 'lowpass'; f.frequency.value = 420; g.gain.value = 0.0; o.connect(f); o2.connect(f); f.connect(g).connect(master); o.start(); o2.start(); eng0 = { o, o2, g, f }; } const t = ctx.currentTime; eng0.o.frequency.setTargetAtTime(38 + v * 5.2, t, 0.1); eng0.o2.frequency.setTargetAtTime(19 + v * 2.6, t, 0.1); eng0.f.frequency.setTargetAtTime(260 + v * 22, t, 0.1); eng0.g.gain.setTargetAtTime(0.07 + Math.min(0.12, v * 0.006), t, 0.1); },
     sirenOff() { if (!siren) return; try { siren.g.gain.value = 0; siren.o.stop(); siren.lfo.stop(); } catch (_) { /* nič */ } siren = null; },
     stop() { this.sirenOff(); try { if (ctx) ctx.close(); } catch (_) { /* nič */ } ctx = null; },
   };
@@ -60,7 +61,7 @@ export function createFps(o) {
   // o: { stage, getEng, getBoxes, getState, role:'det'|'swat', difficulty, solo, sfx, toast, onUse, onDeath, onCuffed, checkpoint, mode:'range'|'combat', suspectAt }
   const G = makeGeom(o.getBoxes, o.getState); const sfx = o.sfx; const DD = DIFF[clamp(o.difficulty || 2, 1, 3)];
   const swat = o.role === 'swat';
-  const P = { hp: 100, armor: swat ? 100 : 60, mags: o.mode === 'range' ? 99 : (o.solo ? 5 : swat ? 9 : 3), ammo: 20, reloading: 0, cool: 0, aim: false, aimK: 0, recoil: 0, flash: 0, hurtFx: 0, hitFx: 0, headFx: 0, nv: false, dead: false, deadAt: 0, lastHurt: 0, badge: 0, spread: 0, msg: '', msgAt: 0, kills: 0, cuffed: false, lock: false };
+  const P = { hp: 100, armor: swat ? 100 : 60, mags: o.mode === 'range' ? 99 : (o.solo ? 5 : swat ? 9 : 3), ammo: 20, reloading: 0, cool: 0, aim: false, aimK: 0, recoil: 0, flash: 0, hurtFx: 0, hitFx: 0, headFx: 0, nv: false, dead: false, deadAt: 0, lastHurt: 0, badge: 0, spread: 0, msg: '', msgAt: 0, kills: 0, cuffed: false, lock: false, slot: 0, drawK: 0, third: false };
   const state = { npcs: [], suspect: null, running: false, mode: o.mode, locked: false };
   const el = {};
   // ---------- HUD ----------
@@ -69,12 +70,12 @@ export function createFps(o) {
     <div class="fps__cross"><i></i><i></i><i></i><i></i></div><div class="fps__hit"></div>
     <div class="fps__bars"><div class="fps__bar fps__bar--hp"><b></b><span>ZDRAVJE</span></div><div class="fps__bar fps__bar--ar"><b></b><span>JOPIČ</span></div></div>
     <div class="fps__ammo"><strong>20</strong><small>/ 60</small></div><div class="fps__gear"></div><div class="fps__msg"></div><div class="fps__badge"></div><div class="fps__dead"><h2>PADLI STE V AKCIJI</h2><p></p></div>
-    <div class="fps__touch"><button data-k="fire">OGENJ</button><button data-k="aim">MERI</button><button data-k="reload">NABIJ</button><button data-k="use">E</button></div>`;
+    <div class="fps__touch"><button data-k="fire">OGENJ</button><button data-k="aim">MERI</button><button data-k="reload">NABIJ</button><button data-k="use">E</button><button data-k="s1">1</button><button data-k="s2">2</button><button data-k="s3">3</button><button data-k="cam">C</button></div>`;
   o.stage.appendChild(root);
   const q = (s) => root.querySelector(s);
   Object.assign(el, { hurt: q('.fps__hurt'), nv: q('.fps__nv'), gun: q('.fps__gun'), cross: q('.fps__cross'), hit: q('.fps__hit'), hp: q('.fps__bar--hp b'), ar: q('.fps__bar--ar b'), ammo: q('.fps__ammo'), gear: q('.fps__gear'), msg: q('.fps__msg'), badge: q('.fps__badge'), dead: q('.fps__dead'), deadp: q('.fps__dead p') });
-  const gearList = swat ? ['Pištola', 'Značka na jopiču', 'Neprebojni jopič', 'Čelada', 'Lisice', 'Svetilka (F)', 'Nočni vid (N)'] : ['Pištola', 'Značka (B)', 'Neprebojni jopič', 'Lisice', 'Svetilka (F)', 'Nočni vid (N)'];
-  el.gear.innerHTML = gearList.map((g) => `<span>${g}</span>`).join('');
+  const gearList = [['1', 'Pištola'], ['2', 'Značka'], ['3', 'Lisice'], ['F', 'Svetilka'], ['N', 'Nočni vid'], ['C', 'Pogled']];
+  el.gear.innerHTML = gearList.map((g) => `<span data-g="${g[0]}"><i>${g[0]}</i>${g[1]}</span>`).join('');
   const say = (t, ms = 2600) => { P.msg = t; P.msgAt = performance.now() + ms; el.msg.textContent = t; el.msg.classList.add('on'); };
 
   // ---------- NPC ----------
@@ -107,7 +108,7 @@ export function createFps(o) {
   const onKey = (e) => {
     if (!state.running || (e.target && /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName))) return;
     if (e.type === 'keyup') { if (e.code === 'KeyZ') P.aim = false; if (e.code === 'Space') keys.fire = false; return; }
-    if (e.code === 'KeyR') reload(); else if (e.code === 'KeyN') toggleNv(); else if (e.code === 'KeyB') showBadge(); else if (e.code === 'KeyZ') P.aim = true; else if (e.code === 'KeyV') shout();
+    if (e.code === 'KeyR') reload(); else if (e.code === 'KeyN') toggleNv(); else if (e.code === 'KeyB' || e.code === 'Digit2') toggleSlot(2); else if (e.code === 'Digit1') toggleSlot(1); else if (e.code === 'Digit3') toggleSlot(3); else if (e.code === 'KeyC') toggleCam(); else if (e.code === 'KeyZ') P.aim = true; else if (e.code === 'KeyV') shout();
     else if (e.code === 'Space') { keys.fire = true; P.fireReq = true; e.preventDefault(); }
   };
   const noMenu = (e) => { if (state.running) e.preventDefault(); };
@@ -115,19 +116,33 @@ export function createFps(o) {
   stageEl.addEventListener('pointerdown', onDown); window.addEventListener('pointerup', onUp); window.addEventListener('pointermove', onMouseMove);
   window.addEventListener('keydown', onKey); window.addEventListener('keyup', onKey); stageEl.addEventListener('contextmenu', noMenu);
   root.querySelectorAll('.fps__touch button').forEach((b) => {
-    const k = b.dataset.k; b.addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); sfx.init(); if (k === 'fire') { keys.fire = true; P.fireReq = true; } else if (k === 'aim') P.aim = !P.aim; else if (k === 'reload') reload(); else if (k === 'use') use(); });
+    const k = b.dataset.k; b.addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); sfx.init(); if (k === 'fire') { keys.fire = true; P.fireReq = true; } else if (k === 'aim') P.aim = !P.aim; else if (k === 'reload') reload(); else if (k === 'use') use(); else if (k === 's1') toggleSlot(1); else if (k === 's2') toggleSlot(2); else if (k === 's3') toggleSlot(3); else if (k === 'cam') toggleCam(); });
     b.addEventListener('pointerup', () => { if (k === 'fire') keys.fire = false; });
   });
 
   // ---------- akcije ----------
   function reload() { if (P.dead || P.reloading || P.reloading > 0 || P.ammo >= 20 || P.mags <= 0) return; P.reloading = 1.7; sfx.reload(); say('Polnjenje …', 1500); }
   function toggleNv() { P.nv = !P.nv; el.nv.classList.toggle('on', P.nv); const E = eng(); if (E) E.setGain(P.nv ? 3.2 : (o.baseGain || 1.8)); const c = document.querySelector('.r3__canvas'); if (c) c.style.filter = P.nv ? 'grayscale(1) sepia(1) hue-rotate(55deg) saturate(2.4) contrast(1.15)' : ''; }
+  function toggleSlot(n) {
+    if (P.dead || P.lock) return; P.slot = P.slot === n ? 0 : n; P.drawK = 0; P.aim = false; el.badge.classList.remove('on');
+    if (P.slot === 1) sfx.reload(); else if (P.slot === 2) { sfx.shout(); say('»Policija!« Značka je pokazana.', 1600); } else if (P.slot === 3) { sfx.cuff(); say('Lisice v roki. Klik na predajajočega se osumljenca ga aretira.', 2600); } else say('Orožje je v tulcu.', 900);
+    el.gear.querySelectorAll('span').forEach((s) => s.classList.toggle('on', s.dataset.g === String(P.slot)));
+  }
+  function toggleCam() { P.third = !P.third; const E = eng(); if (E && E.setThird) E.setThird(P.third); say(P.third ? 'Pogled od zadaj (C za nazaj)' : 'Prva oseba', 1100); }
+  function tryCuff() {
+    const s = state.suspect; if (!s) return; const d = dist(s);
+    if (s.state === 'surrender' && d < 2.6) { P.cuffed = true; s.state = 'cuffed'; s.hands = true; s.lyingT = 1; sfx.cuff(); P.slot = 0; say('Osumljenec je vklenjen in leži na tleh. Peljite ga na postajo.', 3400); if (o.onCuffed) o.onCuffed(); return; }
+    if (s.state === 'surrender') { say('Stopite bližje (manj kot 2 m) in kliknite z lisicami.', 1800); return; }
+    if (s.state === 'flee' || s.state === 'hide') { say('Osumljenec se ne predaja. Pomerite ga s pištolo (1) in kričite (V).', 2400); return; }
+    sfx.click();
+  }
   function showBadge() { P.badge = 2.2; el.badge.innerHTML = `<div class="fps__bcard"><b>★ POLICIJA ★</b><span>${swat ? 'SPECIALNA ENOTA' : 'KRIMINALISTIČNI DETEKTIV'}</span></div>`; el.badge.classList.add('on'); sfx.shout(); say('»Policija!«', 1600); }
   function shout() { sfx.shout(); say('»POLICIJA! ROKE V ZRAK!«', 1800); const s = state.suspect; if (s && s.state === 'hide' && dist(s) < 14) s.alert = true; }
   const dist = (n) => { const E = eng(); return Math.hypot(n.x - E.S.pos.x, n.z - E.S.pos.z); };
   function dirOf(yaw, pitch) { return [Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), -Math.cos(yaw) * Math.cos(pitch)]; }
   function shoot() {
     const E = eng(); if (!E || P.dead || P.lock || P.cool > 0 || P.reloading > 0) return;
+    if (P.slot === 3) { tryCuff(); P.cool = 0.4; return; } if (P.slot !== 1 || P.drawK < 0.8) { if (P.slot === 0) say('Pištola je v tulcu: pritisnite 1', 1100); P.cool = 0.25; return; }
     if (P.ammo <= 0) { sfx.click(); say(P.mags > 0 ? 'Praznega šaržerja: pritisnite R' : 'Zmanjkalo je streliva!', 1600); P.cool = 0.4; return; }
     P.ammo--; P.cool = 0.22; P.recoil = 1; P.flash = 0.06; P.spread = Math.min(0.05, P.spread + 0.012); sfx.shot();
     if (P.ammo === 0 && P.mags > 0) say('Šaržer je prazen: R', 1400);
@@ -146,14 +161,13 @@ export function createFps(o) {
     if (!best) return;
     const n = best.n, head = best.y > 1.5;
     if (n.kind === 'suspect') { say('Neupravičena sila! Osumljenca ne ustrelite.', 2200); n.hurt = 0.5; if (n.state === 'hide') n.alert = true; return; }
-    if (n.kind === 'target') { n.down = 3; P.hitFx = 0.2; sfx.hit(); say(head ? 'Zadetek v glavo' : 'Zadetek', 800); return; }
+    if (n.kind === 'target') { n.down = 3.5; n.side = Math.random() < 0.5 ? 1 : -1; P.hitFx = 0.2; sfx.hit(); say(head ? 'Zadetek v glavo' : 'Zadetek', 800); return; }
     n.hp -= head ? 200 : 26; n.hurt = 0.4; n.state = 'alert'; P.hitFx = 0.25; P.headFx = head ? 0.25 : 0; sfx.hit();
-    if (n.hp <= 0) { P.kills++; n.down = 1; }
+    if (n.hp <= 0) { P.kills++; n.down = 0; n.side = Math.random() < 0.5 ? 1 : -1; }
   }
   function use() {
     const E = eng(); if (!E) return; const s = state.suspect;
-    if (s && (s.state === 'surrender') && dist(s) < 2.4 && !P.cuffed) { P.cuffed = true; s.state = 'cuffed'; s.hands = true; sfx.cuff(); say('Osumljenec je vklenjen. Peljite ga na postajo.', 3000); if (o.onCuffed) o.onCuffed(); return; }
-    if (s && s.state === 'surrender' && dist(s) >= 2.4 && dist(s) < 8) { say('Približajte se osumljencu in pritisnite E.', 1800); return; }
+    if (s && s.state === 'surrender' && dist(s) < 8 && !P.cuffed) { if (P.slot !== 3) { say('Vzemite lisice (3) in kliknite na osumljenca.', 2200); return; } tryCuff(); return; }
     if (o.onUse) o.onUse(E.S.hover);
   }
 
@@ -229,20 +243,22 @@ export function createFps(o) {
       const mv = E.S.keys.has('KeyW') || E.S.keys.has('KeyS') || E.S.keys.has('KeyA') || E.S.keys.has('KeyD'); P.moving = mv;
       if (P.dead || P.lock) E.setSpeed(0); else E.setSpeed(P.aim ? 0.55 : 1);
       P.cool -= dt; P.spread = Math.max(0, P.spread - dt * 0.05); P.recoil = Math.max(0, P.recoil - dt * 6); P.flash = Math.max(0, P.flash - dt); P.hurtFx = Math.max(0, P.hurtFx - dt); P.hitFx = Math.max(0, P.hitFx - dt); P.headFx = Math.max(0, P.headFx - dt);
-      P.aimK += ((P.aim ? 1 : 0) - P.aimK) * Math.min(1, dt * 12);
+      P.aimK += ((P.aim ? 1 : 0) - P.aimK) * Math.min(1, dt * 12); P.drawK = Math.min(1, P.drawK + dt * 3.2); if (P.slot !== 1) P.aim = false;
       if (P.reloading > 0) { P.reloading -= dt; if (P.reloading <= 0) { P.reloading = 0; const need = 20 - P.ammo; const take = Math.min(1, P.mags); if (take > 0) { P.mags -= 1; P.ammo = 20; } } }
       if ((keys.fire || P.fireReq) && !P.dead) shoot(); P.fireReq = false;
       if (!P.dead && performance.now() - P.lastHurt > 9000 && P.hp < 60) P.hp = Math.min(60, P.hp + dt * 4);
       if (P.badge > 0) { P.badge -= dt; if (P.badge <= 0) el.badge.classList.remove('on'); }
       const list = [];
       for (const n of state.npcs) {
-        if (n.kind === 'guard') { if (n.hp > 0) tickGuard(n, dt, E); else { n.down -= dt; if (n.down < -2) continue; n.walk = false; } }
+        if (n.kind === 'guard') { if (n.hp > 0) tickGuard(n, dt, E); else { n.walk = false; n.flash = 0; } }
         else if (n.kind === 'suspect') { if (state.mode === 'combat') tickSuspect(n, dt, E); }
         else if (n.kind === 'target') tickTarget(n, dt);
-        if (n.kind === 'guard' && n.hp <= 0) continue; if (n.kind === 'target' && n.down > 0) continue;
-        list.push({ id: n.id, x: n.x, z: n.z, yaw: n.yaw, av: n.av, walk: n.walk, flash: n.flash || 0, hurt: n.hurt || 0, phase: n.phase });
+        const dead = n.kind === 'guard' && n.hp <= 0, fall = (n.kind === 'target' && n.down > 0) || dead || (n.kind === 'suspect' && n.state === 'cuffed' && n.lyingT !== undefined);
+        n.lyK = (n.lyK || 0) + ((fall ? 1 : 0) - (n.lyK || 0)) * Math.min(1, dt * (n.kind === 'target' && n.down < 0.5 ? 2 : 7));
+        list.push({ id: n.id, x: n.x, z: n.z, yaw: n.yaw, av: n.av, walk: n.walk, flash: n.flash || 0, hurt: n.hurt || 0, phase: n.phase, lying: n.lyK < 0.02 ? 0 : n.lyK, side: n.side || 1, armed: n.kind === 'guard' && !dead, cuffed: n.state === 'cuffed' });
       }
       E.setNpcs(list);
+      if (E.setSelf) { if (P.third) E.setSelf({ x: E.S.pos.x, z: E.S.pos.z, av: o.selfAv || GUARD_AV, walk: P.moving ? 1 : 0, armed: P.slot === 1 }); else E.setSelf(null); }
     }
     hud(now); raf = requestAnimationFrame(frame);
   }
@@ -256,12 +272,27 @@ export function createFps(o) {
     const sp = (P.aim ? 6 : 14) + P.spread * 600; el.cross.style.setProperty('--sp', `${sp}px`); el.cross.style.opacity = P.aim ? '0.9' : '0.75';
     if (P.msgAt && now > P.msgAt) { el.msg.classList.remove('on'); P.msgAt = 0; }
     const r = el.gun.getBoundingClientRect(); const w = Math.round(r.width), h = Math.round(r.height); if (el.gun.width !== w || el.gun.height !== h) { el.gun.width = w; el.gun.height = h; }
-    g2.clearRect(0, 0, w, h); if (!P.dead) drawGun(g2, w, h, now);
+    g2.clearRect(0, 0, w, h); if (!P.dead && !P.third) { if (P.slot === 1) drawGun(g2, w, h, now); else if (P.slot === 2) drawBadge(g2, w, h, now); else if (P.slot === 3) drawCuffs(g2, w, h, now); }
   }
+  function drawBadge(g, w, h, now) {
+    const k = easeOut(P.drawK), sc = Math.min(w, h) / 560; g.save(); g.translate(w * 0.62, h * (1.05 - 0.32 * k) + Math.sin(now / 900) * 3); g.scale(sc, sc);
+    g.fillStyle = skinC(); g.beginPath(); g.ellipse(0, 150, 60, 150, 0, 0, 7); g.fill(); g.fillStyle = '#23262b'; g.fillRect(-70, 210, 140, 200);
+    const gr = g.createLinearGradient(-110, -120, 110, 80); gr.addColorStop(0, '#2a2420'); gr.addColorStop(1, '#0f0c0a'); g.fillStyle = gr;
+    g.beginPath(); g.moveTo(-100, -110); g.lineTo(100, -110); g.lineTo(100, 70); g.lineTo(-100, 70); g.closePath(); g.fill(); g.strokeStyle = '#4a4038'; g.lineWidth = 3; g.strokeRect(-92, -102, 184, 164);
+    g.fillStyle = '#c9a54a'; g.beginPath(); g.arc(0, -20, 38, 0, 7); g.fill(); g.fillStyle = '#2a2420'; g.font = 'bold 22px sans-serif'; g.textAlign = 'center'; g.fillText('★', 0, -11);
+    g.fillStyle = skinC(); g.beginPath(); g.ellipse(-92, 10, 16, 46, 0, 0, 7); g.fill(); g.beginPath(); g.ellipse(92, 10, 16, 46, 0, 0, 7); g.fill(); g.restore();
+  }
+  function drawCuffs(g, w, h, now) {
+    const k = easeOut(P.drawK), sc = Math.min(w, h) / 560; g.save(); g.translate(w * 0.7, h * (1.05 - 0.3 * k)); g.scale(sc, sc);
+    g.fillStyle = skinC(); g.beginPath(); g.ellipse(0, 130, 62, 150, 0.1, 0, 7); g.fill(); g.fillStyle = '#23262b'; g.fillRect(-70, 200, 140, 200);
+    g.strokeStyle = '#c4c8d0'; g.lineWidth = 9; g.beginPath(); g.arc(-34, -20, 34, 0, 7); g.stroke(); g.beginPath(); g.arc(46, -4, 34, 0, 7); g.stroke();
+    g.lineWidth = 5; g.beginPath(); g.moveTo(-2, -22); g.quadraticCurveTo(10, 22 + Math.sin(now / 300) * 5, 14, -6); g.stroke(); g.fillStyle = '#9aa0aa'; g.fillRect(-48, 8, 22, 12); g.fillRect(34, 24, 22, 12); g.restore();
+  }
+  const easeOut = (t) => 1 - (1 - t) ** 3; const skinC = () => (swat ? '#c9a07a' : '#d8b090');
   function drawGun(g, w, h, now) {
     const k = P.aimK, rec = P.recoil, rl = P.reloading > 0 ? Math.sin(clamp(1 - P.reloading / 1.7, 0, 1) * Math.PI) : 0;
     const bob = P.moving && !P.aim ? Math.sin(now / 170) * 6 : 0, bobx = P.moving && !P.aim ? Math.cos(now / 340) * 8 : 0;
-    const bx = w * (0.72 - 0.22 * k) + bobx, by = h * (0.95 - 0.07 * k) + bob + rec * 26 + rl * h * 0.28, sc = Math.min(w, h) / 560 * (1 + 0.15 * k);
+    const dk = easeOut(P.drawK); const bx = w * (0.72 - 0.22 * k) + bobx, by = h * (0.95 - 0.07 * k) + bob + rec * 26 + rl * h * 0.28 + (1 - dk) * h * 0.5, sc = Math.min(w, h) / 560 * (1 + 0.15 * k);
     g.save(); g.translate(bx, by); g.scale(sc, sc); g.rotate(-rec * 0.08 + rl * 0.5);
     // roka
     g.fillStyle = '#23262b'; g.beginPath(); g.moveTo(70, 40); g.lineTo(190, 40); g.lineTo(230, 180); g.lineTo(40, 180); g.closePath(); g.fill();
@@ -287,7 +318,7 @@ export function createFps(o) {
       cancelAnimationFrame(raf); raf = requestAnimationFrame(frame);
     },
     setMode(mode) { this.start(mode); },
-    stop() { state.running = false; cancelAnimationFrame(raf); const E = eng(); if (E) { E.setFps(false); E.setNpcs([]); E.setSpeed(1); } root.classList.remove('on'); if (document.pointerLockElement && document.exitPointerLock) document.exitPointerLock(); const c = document.querySelector('.r3__canvas'); if (c) c.style.filter = ''; },
+    stop() { state.running = false; if (P.third) { P.third = false; const E0 = eng(); if (E0 && E0.setThird) { E0.setThird(false); if (E0.setSelf) E0.setSelf(null); } } cancelAnimationFrame(raf); const E = eng(); if (E) { E.setFps(false); E.setNpcs([]); E.setSpeed(1); } root.classList.remove('on'); if (document.pointerLockElement && document.exitPointerLock) document.exitPointerLock(); const c = document.querySelector('.r3__canvas'); if (c) c.style.filter = ''; },
     destroy() { this.stop(); stageEl.removeEventListener('pointerdown', onDown); window.removeEventListener('pointerup', onUp); window.removeEventListener('pointermove', onMouseMove); window.removeEventListener('keydown', onKey); window.removeEventListener('keyup', onKey); stageEl.removeEventListener('contextmenu', noMenu); root.remove(); },
     use, say, lock(v) { P.lock = !!v; }, invalidate: () => G.invalidate(), refill() { P.hp = 100; P.armor = swat ? 100 : 60; P.ammo = 20; },
     suspect: () => state.suspect, alive: () => state.npcs.filter((n) => n.kind === 'guard' && n.hp > 0).length,

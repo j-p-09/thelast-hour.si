@@ -26,8 +26,25 @@ export function buildStation(opts = {}) {
   B('badge_case', 'st_badge', [-3, 0, 9.5], [-1, 1.3, 10.4], '#3a3d43', { top: '#9bd', decals: { '-z': { draw(g, { L }) { g.fillStyle = sh('#20242b', L); g.fillRect(0, 0, 120, 80); g.fillStyle = sh('#d8b030', L); g.beginPath(); g.moveTo(60, 14); g.lineTo(78, 30); g.lineTo(72, 56); g.lineTo(48, 56); g.lineTo(42, 30); g.closePath(); g.fill(); txt(g, 'POLICIJA', 60, 74, 10, sh('#fff', L), 'center'); } } } });
   // garaža z vozili (jug)
   B('garage_floor', null, [-17.5, 0, 6], [-4, 0.01, 10.5], '#26282c', { solid: false });
-  B('veh1', 'st_vehicle', [-14, 0, 7.2], [-8.5, 1.9, 9.6], '#1c2430', { top: '#2a3342', decals: { '-z': { draw(g, { L, t }) { g.fillStyle = sh('#1c2430', L); g.fillRect(0, 0, 220, 100); g.fillStyle = sh('#10161e', L); g.fillRect(14, 14, 190, 36); txt(g, 'POLICIJA SPECIALNA ENOTA', 110, 78, 13, sh('#fff', L), 'center'); const on = Math.floor(t * 3) % 2; g.fillStyle = on ? '#ff2a2a' : '#2a40ff'; g.fillRect(8, 6, 28, 5); g.fillStyle = on ? '#2a40ff' : '#ff2a2a'; g.fillRect(184, 6, 28, 5); } } } });
-  B('veh2', 'st_vehicle', [-7, 0, 7.4], [-4.8, 1.4, 9.5], '#4d5560', { top: '#5a6370' });
+  // vozili: sestavljena iz več teles (ne škatla). Vozilo 1 = oklepnik specialne enote, vozilo 2 = civilni avto
+  const still = () => [0, 0, 0];
+  car(B, 'v1', -11.2, 7.2, 3, '#1c2430', still, { bar: true, barOn: true, head: false });
+  B('veh1', 'st_vehicle', [-12.6, 0, 7.1], [-9.8, 3.1, 13.6], '#000', { ghost: true, solid: false });
+  car(B, 'v2', -6.4, 7.4, 0, '#4d5560', still, { head: false });
+  B('veh2', 'st_vehicle', [-7.4, 0, 7.3], [-5.4, 1.7, 11.9], '#000', { ghost: true, solid: false });
+  B('v1lbl', null, [-14.4, 1.2, 10.35], [-9.2, 2.2, 10.4], '#1c2430', { solid: false, decals: { '-z': { draw(g, { L }) { g.fillStyle = sh('#1c2430', L); g.fillRect(0, 0, 200, 60); txt(g, 'POLICIJA · SPECIALNA ENOTA', 100, 34, 13, sh('#fff', L), 'center'); } } } });
+  // dekor postaje: napis, zastave, ura, avtomat, klopi, pisalne mize z monitorji, vodoravni pas na steni, svetlobne plošče
+  B('wstripe', null, [-18, 1.0, -10.5], [18, 1.12, -10.45], '#2a4a8a', { solid: false });
+  B('wstripe2', null, [-18, 1.0, 10.45], [18, 1.12, 10.5], '#2a4a8a', { solid: false });
+  B('clock', null, [8.5, 2.5, -10.5], [9.5, 3.1, -10.45], '#e8e8e0', { solid: false, decals: { '+z': { draw(g, { t }) { g.fillStyle = '#e8e8e0'; g.fillRect(0, 0, 40, 40); g.strokeStyle = '#111'; g.lineWidth = 2; g.beginPath(); g.moveTo(20, 20); g.lineTo(20 + 10 * Math.sin(t / 5), 20 - 10 * Math.cos(t / 5)); g.moveTo(20, 20); g.lineTo(28, 20); g.stroke(); } } } });
+  B('flagpole', null, [-1.2, 0, -9.9], [-1.1, 2.6, -9.8], '#aaa'); B('flag', null, [-1.1, 1.5, -9.95], [0.2, 2.5, -9.9], '#d8d8d8', { solid: false, decals: { '+z': { draw(g) { g.fillStyle = '#fff'; g.fillRect(0, 0, 90, 24); g.fillStyle = '#1c4ca8'; g.fillRect(0, 24, 90, 24); g.fillStyle = '#d02828'; g.fillRect(0, 48, 90, 24); } } } });
+  B('vend', null, [2, 0, -9.9], [3.2, 1.9, -8.9], '#2a4aa0', { decals: { '+z': { draw(g) { g.fillStyle = '#16203a'; g.fillRect(0, 0, 70, 120); g.fillStyle = '#e8f0ff'; g.fillRect(8, 10, 44, 64); g.fillStyle = '#c04040'; for (let i = 0; i < 3; i++) g.fillRect(12 + i * 14, 18, 8, 12); g.fillStyle = '#111'; g.fillRect(8, 90, 44, 14); } } } });
+  B('bench1', null, [-8, 0, -9.6], [-3, 0.45, -8.9], '#3a3e46', { top: '#5a606a' }); B('bench2', null, [-8, 0, 3.4], [-4, 0.45, 4.1], '#3a3e46', { top: '#5a606a' });
+  for (const [dx, dz] of [[-12, -7], [-12, 0], [3, -7], [7.2, 6.2]]) { B(`dk${dx}${dz}`, null, [dx, 0, dz], [dx + 2, 0.76, dz + 0.9], '#5a4a3a', { top: '#7a6a58' }); B(`mon${dx}${dz}`, null, [dx + 0.7, 0.76, dz + 0.25], [dx + 1.3, 1.18, dz + 0.35], '#15181e', { solid: false, emissive: 0.25 }); B(`ch${dx}${dz}`, null, [dx + 0.7, 0, dz + 1.05], [dx + 1.3, 0.5, dz + 1.55], '#222', { solid: false }); }
+  for (const [x, z] of [[-9, -4], [0, 0], [11, 0], [-10, 8.5], [-2, -6], [-14, 3]]) B(`lp${x}${z}`, null, [x - 0.7, 3.36, z - 0.25], [x + 0.7, 3.4, z + 0.25], '#fffbe8', { solid: false, emissive: 1 });
+  B('rule', null, [6.3, 0.011, -9.4], [6.5, 0.02, 9.4], '#d8b020', { solid: false });
+  for (const z of [-4, 0, 4]) B(`booth${z}`, null, [6.2, 0, z - 0.06], [9.6, 1.5, z + 0.06], '#3a3e46');
+  B('rangesign', null, [17.4, 1.6, -4], [17.45, 2.6, 4], '#c82020', { solid: false, decals: { '-x': { draw(g) { g.fillStyle = '#c82020'; g.fillRect(0, 0, 160, 60); g.fillStyle = '#fff'; g.font = 'bold 20px sans-serif'; g.textAlign = 'center'; g.fillText('STRELIŠČE', 80, 26); g.font = '12px sans-serif'; g.fillText('zaščita sluha obvezna', 80, 46); } } } });
   // stene, vrata in dekor
   B('divider1', null, [-4.2, 0, 5.8], [-3.8, 3.2, 10.4], WALL, { solid: true });
   B('table', null, [-3, 0, -2], [0, 0.78, 0.4], '#5a4a3a', { top: '#7a6a58' });
@@ -47,41 +64,89 @@ export function buildStation(opts = {}) {
 }
 
 // ---------------- NOČNA VOŽNJA ----------------
-// Sveta ni treba premikati po zemljevidu: predmeti drsijo mimo kamere (off), igralec pa miruje.
+// Sveta ni treba premikati po zemljevidu: predmeti drsijo mimo kamere (off), igralec pa miruje. Cesta se ovija (roadC), predmeti se strižejo.
 const PER = 40;
-export const ROAD_CARS = [{ lane: 0, z0: -15, v: 0.6 }, { lane: 3, z0: -4, v: 0.8 }, { lane: -3, z0: 4, v: 0.9 }, { lane: 0, z0: -28, v: 0.5 }, { lane: 3, z0: 12, v: 0.7 }, { lane: -3, z0: 18, v: 0.85 }, { lane: 0, z0: 2, v: 0.55 }];
+export const ROAD_TOTAL = 1100;
+export const roadC = (s) => Math.sin(s / 80) * 16 + Math.sin(s / 31) * 3.2 + Math.sin(s / 190) * 30;
+export const roadK = (s) => -Math.sin(s / 80) * 16 / 6400 - Math.sin(s / 31) * 3.2 / 961 - Math.sin(s / 190) * 30 / 36100; // ukrivljenost (C'')
+const wrapZ = (z0, dist) => ((((z0 + 20 + dist) % PER) + PER) % PER) - 20;
+export const ROAD_CARS = [{ lane: 0, z0: -15, v: 0.6, kind: 0 }, { lane: 3, z0: -4, v: 0.8, kind: 1 }, { lane: -3, z0: 4, v: 0.9, kind: 2 }, { lane: 0, z0: -28, v: 0.5, kind: 3 }, { lane: 3, z0: 12, v: 0.7, kind: 0 }, { lane: -3, z0: 18, v: 0.85, kind: 1 }, { lane: 0, z0: 2, v: 0.55, kind: 2 }];
 // Položaj avtomobila glede na prevoženo pot (dist), bočni zamik (lat) in sireno (0..1). Isti izračun uporablja tudi vožnja za trke.
 export function carPos(c, d) {
   const dist = d.dist || 0, rel = ((((c.z0 + 20 + dist * (1 - c.v)) % PER) + PER) % PER) - 20;
   const yieldDx = d.siren && Math.abs(c.lane - (d.lat || 0)) < 2.2 ? (c.z0 % 8 > 3 ? 1 : -1) * 3 * d.siren : 0;
-  return { dx: -(d.lat || 0) + yieldDx, dz: rel - c.z0, x: c.lane - (d.lat || 0) + yieldDx, zFront: rel, zBack: rel + 4.2 };
+  const shear = roadC(dist + 17 - (rel + 2)) - roadC(dist);
+  return { dx: -(d.lat || 0) + yieldDx + shear, dz: rel - c.z0, x: c.lane - (d.lat || 0) + yieldDx + shear, zFront: rel, zBack: rel + 4.4 };
 }
+// Sestavljen avto iz več teles: podvozje, nagnjena prednja/zadnja ploskev, kabina s stekli, kolesa, luči. kind: 0 limuzina, 1 hatchback, 2 kombi/SUV, 3 tovornjak.
+function car(B, id, cx, z, kind, color, off, o = {}) {
+  const N = (n, a, b, col, op = {}) => B(`${id}${n}`, null, a, b, col, { solid: false, off, ...op });
+  const L = kind === 3 ? 6.4 : 4.4, W = kind === 3 ? 1.25 : 0.92, tall = kind === 2 ? 0.25 : 0;
+  N('w1', [cx - W - 0.05, 0, z + 0.7], [cx - W + 0.12, 0.62, z + 1.4], '#0c0c0e'); N('w2', [cx + W - 0.12, 0, z + 0.7], [cx + W + 0.05, 0.62, z + 1.4], '#0c0c0e');
+  N('w3', [cx - W - 0.05, 0, z + L - 1.4], [cx - W + 0.12, 0.62, z + L - 0.7], '#0c0c0e'); N('w4', [cx + W - 0.12, 0, z + L - 1.4], [cx + W + 0.05, 0.62, z + L - 0.7], '#0c0c0e');
+  N('b', [cx - W, 0.3, z + 0.1], [cx + W, 0.9, z + L - 0.1], color);
+  if (kind === 3) {
+    N('cab', [cx - W + 0.05, 0.9, z + 0.2], [cx + W - 0.05, 2.5, z + 1.9], color); N('gl', [cx - W + 0.1, 1.5, z + 0.18], [cx + W - 0.1, 2.3, z + 0.3], '#1a2432');
+    N('box', [cx - W, 0.9, z + 2.1], [cx + W, 3.1, z + L], '#7c8086');
+  } else {
+    N('hood', [cx - W + 0.05, 0.9, z + 0.15], [cx + W - 0.05, 1.0, z + 1.45], color); N('hood2', [cx - W + 0.12, 1.0, z + 1.1], [cx + W - 0.12, 1.1, z + 1.7], color);
+    N('cab', [cx - W + 0.1, 1.0, z + 1.5], [cx + W - 0.1, 1.28 + tall, z + (kind === 1 ? L - 0.2 : L - 1.0)], color);
+    N('gl', [cx - W + 0.18, 1.28 + tall, z + 1.85], [cx + W - 0.18, 1.55 + tall, z + (kind === 1 ? L - 0.45 : L - 1.4)], '#16202c');
+    N('roof', [cx - W + 0.24, 1.55 + tall, z + 2.1], [cx + W - 0.24, 1.6 + tall, z + (kind === 1 ? L - 0.6 : L - 1.6)], color);
+    if (kind !== 1) N('trunk', [cx - W + 0.06, 0.9, z + L - 1.0], [cx + W - 0.06, 1.05, z + L - 0.1], color);
+  }
+  N('hl1', [cx - W + 0.12, 0.62, z + 0.04], [cx - W + 0.5, 0.78, z + 0.14], '#fff6d8', { emissive: o.head === false ? 0.1 : 1 }); N('hl2', [cx + W - 0.5, 0.62, z + 0.04], [cx + W - 0.12, 0.78, z + 0.14], '#fff6d8', { emissive: o.head === false ? 0.1 : 1 });
+  N('tl1', [cx - W + 0.1, 0.62, z + L - 0.12], [cx - W + 0.55, 0.78, z + L - 0.02], '#ff2020', { emissive: 1 }); N('tl2', [cx + W - 0.55, 0.62, z + L - 0.12], [cx + W - 0.1, 0.78, z + L - 0.02], '#ff2020', { emissive: 1 });
+  N('bump', [cx - W, 0.3, z], [cx + W, 0.5, z + 0.1], '#151518');
+  if (o.bar) { N('bar1', [cx - 0.7, 1.6 + tall, z + 2.3], [cx - 0.05, 1.72 + tall, z + 2.7], '#ff2a2a', { emissive: o.barOn ? 1 : 0.15 }); N('bar2', [cx + 0.05, 1.6 + tall, z + 2.3], [cx + 0.7, 1.72 + tall, z + 2.7], '#2a50ff', { emissive: o.barOn ? 1 : 0.15 }); }
+}
+export function drawCarModel(B, id, cx, z, kind, color, off, o) { car(B, id, cx, z, kind, color, off, o); }
 export function buildRoad() {
   const { boxes, B } = mk();
-  const slide = (z0, k = 1) => (st) => { const d = st.drive || { dist: 0, lat: 0 }; const dz = ((d.dist * k) % PER + PER) % PER; return [-(d.lat || 0), 0, dz]; };
-  // lani in robne črte
-  for (let i = -20; i < 20; i += 4) B(`dash${i}`, null, [-0.06, 0.012, i], [0.06, 0.02, i + 2], '#e8e8e0', { solid: false, off: slide(i) });
-  B('edgeL', null, [-6.1, 0.012, -20], [-5.97, 0.02, 20], '#e8e8e0', { solid: false }); B('edgeR', null, [5.97, 0.012, -20], [6.1, 0.02, 20], '#e8e8e0', { solid: false });
-  // svetilke
-  for (let i = -20; i < 20; i += 10) for (const sx of [-6.6, 6.6]) {
-    B(`pole${i}${sx}`, null, [sx - 0.05, 0, i], [sx + 0.05, 5.2, i + 0.1], '#2a2c30', { solid: false, off: slide(i) });
-    B(`lamp${i}${sx}`, null, [sx - 0.35, 5.2, i - 0.1], [sx + 0.35, 5.3, i + 0.3], '#fff2c0', { solid: false, emissive: 1, off: slide(i) });
+  const place = (z0) => (st) => { const d = st.drive || { dist: 0, lat: 0 }; const z = wrapZ(z0, d.dist); return [roadC(d.dist + 17 - z) - roadC(d.dist) - (d.lat || 0), 0, z - z0]; };
+  // vozišče po odsekih (2 m), pločniki in robne črte
+  for (let i = -20; i < 20; i += 2) {
+    const o = { solid: false, off: place(i) };
+    B(`as${i}`, null, [-6, 0.004, i], [6, 0.012, i + 2.04], '#34363b', o);
+    B(`wl${i}`, null, [-8.6, 0.01, i], [-6, 0.13, i + 2.04], '#5a5c62', o); B(`wr${i}`, null, [6, 0.01, i], [8.6, 0.13, i + 2.04], '#5a5c62', o);
+    B(`gl${i}`, null, [-60, 0, i], [-8.6, 0.006, i + 2.04], '#16221a', o); B(`gr${i}`, null, [8.6, 0, i], [60, 0.006, i + 2.04], '#16221a', o);
+    B(`eL${i}`, null, [-5.85, 0.014, i], [-5.72, 0.02, i + 2.04], '#e8e8e0', o); B(`eR${i}`, null, [5.72, 0.014, i], [5.85, 0.02, i + 2.04], '#e8e8e0', o);
+    if (((i + 20) / 2) % 2 === 0) { B(`c${i}`, null, [-0.07, 0.014, i], [0.07, 0.02, i + 1.2], '#e8d878', o); B(`cL${i}`, null, [-3.07, 0.014, i], [-2.93, 0.02, i + 1.2], '#d8d8d0', o); B(`cR${i}`, null, [2.93, 0.014, i], [3.07, 0.02, i + 1.2], '#d8d8d0', o); }
   }
-  // okna stavb (osvetljena)
-  for (let i = -20; i < 20; i += 5) for (const sx of [-1, 1]) for (const hy of [2.2, 4.2, 6.2]) {
-    if (((i / 5) * 3 + hy * 7 + (sx > 0 ? 1 : 0)) % 3 === 0) continue;
-    const x = sx * 7.92; B(`win${i}${sx}${hy}`, null, [Math.min(x, x - sx * 0.05), hy, i], [Math.max(x, x - sx * 0.05), hy + 1.1, i + 2], '#ffd88a', { solid: false, emissive: 0.8, off: slide(i) });
+  // svetilke in stavbe ob cesti
+  for (let i = -20; i < 20; i += 10) for (const sx of [-1, 1]) {
+    const o = { solid: false, off: place(i) }; const x = sx * 7.4;
+    B(`pole${i}${sx}`, null, [x - 0.06, 0, i], [x + 0.06, 5.6, i + 0.12], '#2a2c30', o); B(`arm${i}${sx}`, null, [x - sx * 1.6, 5.5, i], [x, 5.6, i + 0.12], '#2a2c30', o);
+    B(`lamp${i}${sx}`, null, [x - sx * 2.0, 5.4, i - 0.1], [x - sx * 1.2, 5.5, i + 0.3], '#fff2c0', { ...o, emissive: 1 });
+    B(`glow${i}${sx}`, null, [x - sx * 2.6, 0.016, i - 2.4], [x - sx * 0.6, 0.02, i + 2.7], '#8a7a4a', { ...o, emissive: 0.35 });
+  }
+  for (let i = -20; i < 20; i += 10) for (const sx of [-1, 1]) {
+    const o = { solid: false, off: place(i) }; const bh = 7 + ((i / 10 + 2 + (sx > 0 ? 1 : 0)) % 3) * 3, x0 = sx * 10, x1 = sx * 18;
+    B(`bl${i}${sx}`, null, [Math.min(x0, x1), 0, i], [Math.max(x0, x1), bh, i + 9.7], ['#2a2c34', '#34302c', '#262c30'][(i / 10 + 2 + (sx > 0 ? 1 : 0)) % 3 | 0], o);
+    for (let wy = 2.2; wy < bh - 1; wy += 2.6) for (let wz = 0.8; wz < 9; wz += 2.4) { if (((wy * 3 + wz * 5 + i + (sx > 0 ? 7 : 0)) | 0) % 3 === 0) continue; B(`wn${i}${sx}${wy | 0}${wz | 0}`, null, [x0 - sx * 0.01 - (sx > 0 ? 0 : 0.04), wy, i + wz], [x0 - sx * 0.01 + (sx > 0 ? 0.04 : 0), wy + 1.3, i + wz + 1.4], '#ffd88a', { ...o, emissive: 0.85 }); }
   }
   // promet
-  ROAD_CARS.forEach((c, i) => {
-    const off = (st) => { const p = carPos(c, st.drive || {}); return [p.dx, 0, p.dz]; };
-    B(`car${i}`, null, [c.lane - 0.9, 0.2, c.z0], [c.lane + 0.9, 1.35, c.z0 + 4.2], ['#8a1c1c', '#1c3a8a', '#d8d8d8', '#202020', '#1c6a3a', '#a07a20', '#5a5a60'][i % 7], { solid: false, off });
-    B(`tail${i}`, null, [c.lane - 0.85, 0.7, c.z0 + 4.2], [c.lane + 0.85, 0.85, c.z0 + 4.26], '#ff2020', { solid: false, emissive: 1, off });
-  });
+  const COLS = ['#8a1c1c', '#1c3a8a', '#c8c8c8', '#202024', '#1c6a3a', '#a07a20', '#5a5a60'];
+  ROAD_CARS.forEach((c, i) => { const off = (st) => { const p = carPos(c, st.drive || {}); return [p.dx, 0, p.dz]; }; car(B, `car${i}`, c.lane, c.z0, c.kind, COLS[i % 7], off); });
+  // cilj: ograja z zapornico in skladišče (pridejo v vidno polje šele ob koncu poti)
+  const dest = (st) => { const d = st.drive || { dist: 0, lat: 0 }; const gz = 17 - (ROAD_TOTAL + 6 - d.dist); return [roadC(ROAD_TOTAL + 6) - roadC(d.dist) - (d.lat || 0), 0, gz]; };
+  const O = { solid: false, off: dest };
+  B('d_bar', null, [-6, 0.9, -0.2], [6, 1.05, 0.2], '#d82020', O); B('d_p1', null, [-6.3, 0, -0.3], [-5.8, 1.5, 0.3], '#444', O); B('d_p2', null, [5.8, 0, -0.3], [6.3, 1.5, 0.3], '#444', O);
+  B('d_fenceL', null, [-30, 0, -0.1], [-6.3, 2.2, 0.1], '#50545c', O); B('d_fenceR', null, [6.3, 0, -0.1], [30, 2.2, 0.1], '#50545c', O);
+  B('d_wh', null, [-26, 0, -26], [26, 8, -9], '#3a3e46', O); B('d_roof', null, [-26.5, 8, -26.5], [26.5, 8.5, -8.5], '#2a2c32', O);
+  B('d_yard', null, [-30, 0.004, -30], [30, 0.01, 0], '#2a2b2f', { ...O, solid: false });
+  for (const dx of [-16, -4, 8, 20]) B(`d_door${dx}`, null, [dx, 0, -9.05], [dx + 6, 4.4, -8.95], '#5a5e66', O);
+  B('d_sign', null, [-12, 5.2, -9.1], [12, 6.8, -9], '#e8e0c8', { ...O, emissive: 0.6, decals: { '+z': { draw(g) { g.fillStyle = '#e8e0c8'; g.fillRect(0, 0, 300, 70); g.fillStyle = '#c81818'; g.font = 'bold 28px sans-serif'; g.textAlign = 'center'; g.fillText('ZORMAN LOGISTIKA', 150, 36); g.fillStyle = '#333'; g.font = '14px sans-serif'; g.fillText('tovorni terminal 4 · samo za pooblaščene', 150, 58); } } } });
+  for (const dx of [-22, 22]) { B(`d_fp${dx}`, null, [dx - 0.1, 0, -9.5], [dx + 0.1, 9, -9.3], '#222', O); B(`d_fl${dx}`, null, [dx - 1.2, 9, -9.8], [dx + 1.2, 9.4, -9.2], '#fff8e0', { ...O, emissive: 1 }); }
+  for (let k = 0; k < 6; k++) B(`d_win${k}`, null, [-24 + k * 8.5, 5.4, -9.04], [-22 + k * 8.5, 6.6, -8.96], '#d8c880', { ...O, emissive: 0.6 });
+  B('d_guard', null, [8, 0, -3.5], [10.5, 2.3, -1.0], '#4a4e54', O); B('d_gwin', null, [8.4, 1.1, -1.04], [10.1, 1.9, -0.96], '#f0e0a0', { ...O, emissive: 0.8 });
+  // lastno vozilo (kot sled sovoznika) parkirano ob cesti
+  const ego = (st) => { const d = st.drive || { dist: 0, lat: 0 }; return d.out ? [-(d.lat || 0), 0, 0] : [0, 0, 300]; };
+  if (true) car(B, 'ego', 0, 15.0, 2, '#161a24', ego, { bar: true, barOn: false, head: true });
   const lights = [
     { name: 'l1', pos: [-5, 5, 6], color: [1, 0.85, 0.55], intensity: 0.8, range: 14 }, { name: 'l2', pos: [5, 5, -6], color: [1, 0.85, 0.55], intensity: 0.8, range: 14 }, { name: 'l3', pos: [0, 4, 15], color: [1, 0.9, 0.7], intensity: 0.5, range: 12 },
   ];
-  return { kind: 'road', room: { w: 16, d: 40, h: 12, floor: '#2a2b2e', wall: '#585c66', wainscot: '#34373d', ceiling: '#0a1020' }, boxes, lights, ambient: 0.2, spawn: { x: 1.8, z: 17, yaw: 0 } };
+  return { kind: 'road', room: { w: 120, d: 40, h: 14, floor: '#16221a', wall: '#0c1018', wainscot: '#0a0e14', ceiling: '#05070d' }, boxes, lights, ambient: 0.2, spawn: { x: 0, z: 17, yaw: 0 } };
 }
 
 // ---------------- SKLADIŠČE ----------------

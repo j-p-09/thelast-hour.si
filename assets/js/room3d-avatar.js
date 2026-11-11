@@ -26,7 +26,7 @@ export function drawAvatar2D(g, avIn, x, y, h, o = {}) {
   const sw = Math.sin(t * 7) * 5 * walk;
   const F = av.sex === 1, SK = av.bottom === 1;
   const tw = [34, 40, 47][av.build] * (F ? 0.88 : 1), hw = [11, 12, 13.5][av.build] * (F ? 1.08 : 1);
-  g.save(); g.translate(x, y); g.scale(s, s);
+  g.save(); g.translate(x, y); g.scale(s, s); if (o.lying) g.rotate(o.lying * (Math.PI / 2) * (o.side || 1));
   // senca
   g.fillStyle = 'rgba(0,0,0,.35)'; g.beginPath(); g.ellipse(0, 1, 26, 6, 0, 0, 7); g.fill();
   const C = (c) => mix(c, L);
@@ -45,12 +45,15 @@ export function drawAvatar2D(g, avIn, x, y, h, o = {}) {
     g.fillStyle = grad(ax - 5, armY, ax + 5, armY + 56, av.shirt); rr(g, ax - 5, armY, 10, 50 - sx * sw * 0.3, 5); g.fill();
     g.fillStyle = C(av.skin); g.beginPath(); g.ellipse(ax, armY + 54 - sx * sw * 0.3, 5, 6, 0, 0, 7); g.fill();
   }
+  if (o.armed && !o.lying) { g.fillStyle = C('#14161a'); g.fillRect(tw / 2 + 2, armY + 44, 26, 9); g.fillRect(tw / 2 + 4, armY + 50, 8, 16); g.fillStyle = C('#8a8f98'); g.fillRect(tw / 2 + 20, armY + 45, 8, 3); }
   // trup
   g.fillStyle = grad(-tw / 2, -150, tw / 2, -84, av.shirt); rr(g, -tw / 2, -150, tw, 68, 14); g.fill();
   g.strokeStyle = 'rgba(0,0,0,.18)'; g.lineWidth = 1.2; g.stroke();
   g.fillStyle = 'rgba(255,255,255,.10)'; rr(g, -tw / 2 + 4, -146, tw * 0.28, 52, 8); g.fill();
   if (SK) { g.fillStyle = grad(-tw / 2 - 8, -90, tw / 2 + 8, -40, av.pants); g.beginPath(); g.moveTo(-tw / 2 + 1, -92); g.lineTo(tw / 2 - 1, -92); g.lineTo(tw / 2 + 11 + av.build * 2, -40); g.lineTo(-tw / 2 - 11 - av.build * 2, -40); g.closePath(); g.fill(); g.strokeStyle = 'rgba(0,0,0,.18)'; g.stroke(); }
   else { g.fillStyle = C('#1c1c20'); g.fillRect(-tw / 2 + 2, -88, tw - 4, 5); } // pas
+  if (o.cop) { g.fillStyle = C('#101216'); rr(g, -tw / 2 - 3, -98, 11, 24, 3); g.fill(); g.fillStyle = C('#aab'); g.beginPath(); g.arc(tw / 2 - 6, -92, 3.2, 0, 7); g.fill(); g.fillStyle = C('#d8b030'); g.beginPath(); g.arc(-tw / 2 + 8, -126, 3, 0, 7); g.fill(); }
+  if (o.cuffed) { g.fillStyle = C('#cfd3da'); rr(g, -9, -106, 18, 6, 3); g.fill(); }
   // vrat in glava
   g.fillStyle = Cm(av.skin, 0.86); rr(g, -4.5, -157, 9, 11, 3); g.fill();
   const hy = -170;
@@ -70,7 +73,8 @@ export function drawAvatar2D(g, avIn, x, y, h, o = {}) {
   else if (av.style === 5) { g.beginPath(); g.moveTo(-12.4, hy - 2); g.quadraticCurveTo(-13, hy - 17, 0, hy - 15.5); g.quadraticCurveTo(13, hy - 17, 12.4, hy - 2); g.quadraticCurveTo(8, hy - 9, 0, hy - 8); g.quadraticCurveTo(-8, hy - 9, -12.4, hy - 2); g.fill(); }
   else if (av.style === 3) { g.beginPath(); g.moveTo(-11.6, hy - 3); g.quadraticCurveTo(-11, hy - 14, 0, hy - 14.5); g.quadraticCurveTo(11, hy - 14, 11.6, hy - 3); g.quadraticCurveTo(0, hy - 10, -11.6, hy - 3); g.fill(); }
   else { for (let i = -2; i <= 2; i++) { g.beginPath(); g.arc(i * 5.2, hy - 12.5 + Math.abs(i) * 1.6, 6, 0, 7); g.fill(); } }
-  // obraz
+  if (o.back) { g.fillStyle = grad(-13, hy - 15, 13, hy + 14, av.hair); g.beginPath(); g.ellipse(0, hy + 0.5, 12.2, 14, 0, 0, 7); g.fill(); }
+  if (!o.back) {
   g.fillStyle = C('#ffffff'); g.beginPath(); g.ellipse(-4.4, hy + 0.5, 2.3, 1.9, 0, 0, 7); g.ellipse(4.4, hy + 0.5, 2.3, 1.9, 0, 0, 7); g.fill();
   g.fillStyle = C('#2a1c14'); g.beginPath(); g.arc(-4.2, hy + 0.7, 1.3, 0, 7); g.arc(4.2, hy + 0.7, 1.3, 0, 7); g.fill();
   g.strokeStyle = Cm(av.skin, 0.6); g.lineWidth = 1; g.beginPath(); g.moveTo(0, hy + 2); g.lineTo(-0.8, hy + 5.4); g.lineTo(0.8, hy + 5.4); g.stroke();
@@ -80,6 +84,7 @@ export function drawAvatar2D(g, avIn, x, y, h, o = {}) {
   // dodatki
   if (av.acc === 4) { g.fillStyle = C('#e8c25a'); g.beginPath(); g.arc(-12, hy + 5.5, 2, 0, 7); g.arc(12, hy + 5.5, 2, 0, 7); g.fill(); }
   if (av.acc === 1) { g.strokeStyle = C('#1a1a1a'); g.lineWidth = 1.5; g.beginPath(); g.arc(-4.6, hy + 0.7, 4.3, 0, 7); g.moveTo(9.2, hy + 0.7); g.arc(4.6, hy + 0.7, 4.3, 0, 7); g.moveTo(-0.4, hy + 0.2); g.lineTo(0.4, hy + 0.2); g.stroke(); }
+  }
   if (av.acc === 2) { g.fillStyle = grad(-13, hy - 20, 13, hy - 8, av.shirt); g.beginPath(); g.moveTo(-13, hy - 6); g.quadraticCurveTo(-13, hy - 22, 0, hy - 21); g.quadraticCurveTo(13, hy - 22, 13, hy - 6); g.closePath(); g.fill(); rr(g, -15, hy - 8, 30, 4, 2); g.fillStyle = Cm(av.shirt, 0.7); g.fill(); }
   if (av.acc === 3) { g.fillStyle = grad(-11, hy + 2, 11, hy + 18, av.hair); g.beginPath(); g.moveTo(-11, hy + 2); g.quadraticCurveTo(-12, hy + 17, 0, hy + 19); g.quadraticCurveTo(12, hy + 17, 11, hy + 2); g.quadraticCurveTo(0, hy + 8, -11, hy + 2); g.fill(); }
   // ime
@@ -91,7 +96,7 @@ export function drawAvatar2D(g, avIn, x, y, h, o = {}) {
 }
 
 // 3D model za realistični prikaz (three.js). Vrne skupino; userData.parts vsebuje sklepe za animacijo hoje.
-export function buildAvatar3D(T, avIn, name) {
+export function buildAvatar3D(T, avIn, name, o2 = {}) {
   const av = cleanAv(avIn), G = new T.Group();
   const M = (c, r = 0.6, m = 0.02) => new T.MeshStandardMaterial({ color: c, roughness: r, metalness: m });
   const skin = M(av.skin, 0.55), shirt = M(av.shirt, 0.75), pants = M(av.pants, 0.8), hair = M(av.hair, 0.7), shoe = M('#1c1c20', 0.5);
@@ -142,6 +147,8 @@ export function buildAvatar3D(T, avIn, name) {
     const tex = new T.CanvasTexture(c); tex.colorSpace = T.SRGBColorSpace;
     const sp = new T.Sprite(new T.SpriteMaterial({ map: tex, transparent: true, depthWrite: false })); sp.position.set(0, 2.0, 0); sp.scale.set(0.6, 0.15, 1); G.add(sp);
   } catch (_) { /* ime ni obvezno */ }
+  if (o2.cop) { const hol = part(new T.BoxGeometry(0.06, 0.15, 0.1), M('#101216', 0.6), -0.2, 0.93, 0.02); G.add(hol); G.add(part(new T.BoxGeometry(0.1, 0.03, 0.06), M('#cfd3da', 0.3, 0.8), 0.17, 0.95, 0.12)); G.add(part(new T.CylinderGeometry(0.022, 0.022, 0.012, 14), M('#d8b030', 0.3, 0.8), -0.1, 1.28, 0.145)).rotation.x = Math.PI / 2; }
+  if (o2.armed) arms[1].add(part(new T.BoxGeometry(0.045, 0.17, 0.07), M('#111', 0.4, 0.5), 0, -0.62, 0.03));
   G.userData.parts = { legs, arms };
   return G;
 }

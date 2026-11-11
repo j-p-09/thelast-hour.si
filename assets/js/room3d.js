@@ -130,12 +130,12 @@ export async function room3dScreen(id, caseId) {
     stopLayers();
     if (ph === 'drive') {
       const veh = myRole() === 'swat' || R.vehicle !== 'civil' ? 'swat' : 'civil';
-      drive = createDrive({ stage, getEng: () => eng, sfx: sfx4, toast, vehicle: veh, total: 1100, onArrive: () => { R.arrived = true; drawSetup(); toast(isHost() ? 'Prispeli ste. Pritisnite UDOR.' : 'Prispeli ste. Počakajte na vodjo.', 'ok', 5000); } });
+      drive = createDrive({ stage, getEng: () => eng, sfx: sfx4, toast, vehicle: veh, onArrive: () => { R.arrived = true; drawSetup(); toast(isHost() ? 'Prispeli ste. Pritisnite UDOR.' : 'Prispeli ste. Počakajte na vodjo.', 'ok', 5000); } });
       drive.start();
     } else {
       fps = createFps({ stage, getEng: () => eng, getBoxes: () => (lastScene ? lastScene.boxes : []), getState: () => eng.S.state, role: myRole(), difficulty: diff, solo, sfx: sfx4, toast,
         onUse: (obj) => { if (obj) interactC4(obj); }, onDeath: async () => { try { return await call('roomCasualty', { id }); } catch (_) { return null; } },
-        onCuffed: () => { R.cell = true; try { sessionStorage.setItem(`tlh.cell.${id}`, '1'); } catch (_) { /* nič */ } fade('Prevoz na postajo …', 2600); setTimeout(() => after(), 2600); }, checkpoint, mode: ph === 'station' ? 'range' : ph === 'cell' ? 'cell' : 'combat', baseGain: GAINS[gainI][1] });
+        onCuffed: () => { R.cell = true; try { sessionStorage.setItem(`tlh.cell.${id}`, '1'); } catch (_) { /* nič */ } setTimeout(() => fade('Osumljenca vozite na postajo …', 3200), 5200); setTimeout(() => after(), 8400); }, selfAv: cleanAv({ ...cleanAv((S.profile && S.profile.avatar) || DEFAULT_AVATAR), ...(myRole() === 'swat' ? AV_SWAT : AV_DET) }), checkpoint, mode: ph === 'station' ? 'range' : ph === 'cell' ? 'cell' : 'combat', baseGain: GAINS[gainI][1] });
       fps.start(ph === 'station' ? 'range' : ph === 'cell' ? 'cell' : 'combat');
       if (ph === 'building') fps.say('Vdor! Obvladajte nasprotnike in odklepajte vrata. Osumljenec je za zadnjimi vrati.', 5000);
       if (ph === 'cell') fps.say('Osumljenec je v celici. Odprite celico (E) in izpolnite zapisnik.', 5000);
