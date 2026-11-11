@@ -29,7 +29,7 @@ export async function createRealEngine(canvas, scene, opts = {}) {
   const T = await loadThree();
   const S = {
     pos: { x: scene.spawn.x, y: 1.62, z: scene.spawn.z }, yaw: scene.spawn.yaw || 0, pitch: 0,
-    flash: false, uv: false, gain: 1, hover: null, state: {}, auto: null, t: 0, keys: new Set(), pad: { f: 0, s: 0, r: 0 }, running: true, W: 800, H: 500,
+    fps: false, speedMul: 1, flash: false, uv: false, gain: 1, hover: null, state: {}, auto: null, t: 0, keys: new Set(), pad: { f: 0, s: 0, r: 0 }, running: true, W: 800, H: 500,
   };
   if (opts.start) { S.pos.x = opts.start.x; S.pos.z = opts.start.z; S.yaw = opts.start.yaw; S.pitch = opts.start.pitch || 0; }
 
@@ -256,12 +256,13 @@ export async function createRealEngine(canvas, scene, opts = {}) {
     return [clamp(nx, x0 + lim, x1 - lim), clamp(nz, z0 + lim, z1 - lim)];
   }
   function update(dt) {
+    if (S.fps) { const hp = pick(S.W / 2, S.H / 2); setHover(hp ? hp.obj : null); }
     S.t += dt;
     S.yaw += ((S.keys.has('ArrowLeft') || S.keys.has('KeyQ') ? -1 : 0) + (S.keys.has('ArrowRight') || S.keys.has('KeyE') ? 1 : 0) + S.pad.r) * 1.9 * dt;
     const f = (S.keys.has('KeyW') || S.keys.has('ArrowUp') ? 1 : 0) - (S.keys.has('KeyS') || S.keys.has('ArrowDown') ? 1 : 0) + S.pad.f;
     const s = (S.keys.has('KeyD') ? 1 : 0) - (S.keys.has('KeyA') ? 1 : 0) + S.pad.s;
     let mx = 0, mz = 0;
-    if (f || s) { const fl = clamp(f, -1, 1), sl = clamp(s, -1, 1), sp = (S.keys.has('ShiftLeft') ? 4.2 : 2.5) * dt; mx = (Math.sin(S.yaw) * fl + Math.cos(S.yaw) * sl) * sp; mz = (-Math.cos(S.yaw) * fl + Math.sin(S.yaw) * sl) * sp; S.auto = null; }
+    if (f || s) { const fl = clamp(f, -1, 1), sl = clamp(s, -1, 1), sp = (S.keys.has('ShiftLeft') ? 4.2 : 2.5) * (S.speedMul || 1) * dt; mx = (Math.sin(S.yaw) * fl + Math.cos(S.yaw) * sl) * sp; mz = (-Math.cos(S.yaw) * fl + Math.sin(S.yaw) * sl) * sp; S.auto = null; }
     if (S.auto) {
       const dx = S.auto.x - S.pos.x, dz = S.auto.z - S.pos.z, d = Math.hypot(dx, dz);
       const want = Math.atan2(S.auto.lx - S.pos.x, -(S.auto.lz - S.pos.z)); let dy = want - S.yaw; while (dy > Math.PI) dy -= 2 * Math.PI; while (dy < -Math.PI) dy += 2 * Math.PI; S.yaw += clamp(dy, -4 * dt, 4 * dt);
@@ -303,6 +304,18 @@ export async function createRealEngine(canvas, scene, opts = {}) {
     }
     for (const [k, q] of [...peers]) if (!seen.has(k)) { if (q.g) sc.remove(q.g); peers.delete(k); }
   }
+  const npcMap = new Map();
+  function setNpcs(list) {
+    const seen = new Set();
+    for (const n of list || []) {
+      seen.add(n.id); let q = npcMap.get(n.id);
+      if (!q) { let g = null; try { g = buildAvatar3D(T, n.av, ''); sc.add(g); } catch (e) { console.error('NPC', e); } q = { g, ph: Math.random() * 6 }; npcMap.set(n.id, q); }
+      if (!q.g) continue; q.g.position.set(n.x, 0, n.z); q.g.rotation.y = Math.PI - (n.yaw || 0);
+      const pr = q.g.userData.parts; if (pr) { const sw = n.walk ? Math.sin(S.t * 7 + q.ph) * 0.6 : 0; pr.legs[0].rotation.x = sw; pr.legs[1].rotation.x = -sw; pr.arms[0].rotation.x = -1.3; pr.arms[1].rotation.x = -1.3; }
+      q.g.traverse((o) => { if (o.material && o.material.emissive) o.material.emissive.setRGB(n.hurt > 0 ? 0.6 : 0, 0, 0); });
+    }
+    for (const [k, q] of [...npcMap]) if (!seen.has(k)) { if (q.g) sc.remove(q.g); npcMap.delete(k); }
+  }
   function updatePeers(dt) {
     for (const q of peers.values()) {
       if (!q.g) continue;
@@ -317,18 +330,19 @@ export async function createRealEngine(canvas, scene, opts = {}) {
   // ---------- vhodi ----------
   const onKey = (e) => {
     if (e.target && /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
+    if (S.fps && (e.code === 'KeyQ' || e.code === 'KeyE')) { if (e.type === 'keydown' && e.code === 'KeyE' && opts.onUse) opts.onUse(); return; }
     if (['KeyW', 'KeyA', 'KeyS', 'KeyD', 'KeyQ', 'KeyE', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ShiftLeft'].includes(e.code)) { if (e.type === 'keydown') S.keys.add(e.code); else S.keys.delete(e.code); if (e.code.startsWith('Arrow')) e.preventDefault(); }
-    if (e.type === 'keydown') { if (e.code === 'KeyF' && opts.onFlash) opts.onFlash(); if (e.code === 'KeyU' && opts.onUv) opts.onUv(); if ((e.code === 'Space' || e.code === 'Enter') && S.hover && opts.onInteract) { e.preventDefault(); opts.onInteract(S.hover); } }
+    if (e.type === 'keydown') { if (e.code === 'KeyF' && opts.onFlash) opts.onFlash(); if (e.code === 'KeyU' && opts.onUv) opts.onUv(); if ((e.code === 'Space' || e.code === 'Enter') && !S.fps && S.hover && opts.onInteract) { e.preventDefault(); opts.onInteract(S.hover); } }
   };
   window.addEventListener('keydown', onKey); window.addEventListener('keyup', onKey); const blur = () => S.keys.clear(); window.addEventListener('blur', blur);
   let drag = null; const rel = (e) => { const r = canvas.getBoundingClientRect(); return [(e.clientX - r.left) * (S.W / r.width), (e.clientY - r.top) * (S.H / r.height)]; };
   canvas.addEventListener('pointerdown', (e) => { canvas.setPointerCapture(e.pointerId); const [x, y] = rel(e); drag = { x, y, moved: 0, id: e.pointerId }; });
   canvas.addEventListener('pointermove', (e) => {
     const [x, y] = rel(e);
-    if (drag && drag.id === e.pointerId) { const dx = x - drag.x, dy = y - drag.y; drag.moved += Math.abs(dx) + Math.abs(dy); drag.x = x; drag.y = y; if (drag.moved > 6) { S.yaw += dx * 0.0042; S.pitch = clamp(S.pitch - dy * 0.0035, -1, 1); S.auto = null; } }
+    if (drag && drag.id === e.pointerId) { const dx = x - drag.x, dy = y - drag.y; drag.moved += Math.abs(dx) + Math.abs(dy); drag.x = x; drag.y = y; if (drag.moved > 6 && !S.fps) { S.yaw += dx * 0.0042; S.pitch = clamp(S.pitch - dy * 0.0035, -1, 1); S.auto = null; } }
     if (!drag || e.pointerType === 'mouse') { const p = pick(x, y); setHover(p ? p.obj : null); canvas.style.cursor = S.hover ? 'pointer' : (drag ? 'grabbing' : 'grab'); }
   });
-  canvas.addEventListener('pointerup', (e) => { if (!drag || drag.id !== e.pointerId) return; const tap = drag.moved <= 6; const [x, y] = rel(e); drag = null; if (tap) { const p = pick(x, y); setHover(p ? p.obj : null); if (p && opts.onInteract) opts.onInteract(p.obj); } });
+  canvas.addEventListener('pointerup', (e) => { if (!drag || drag.id !== e.pointerId) return; const tap = drag.moved <= 6 && !S.fps; const [x, y] = rel(e); drag = null; if (tap) { const p = pick(x, y); setHover(p ? p.obj : null); if (p && opts.onInteract) opts.onInteract(p.obj); } });
   canvas.addEventListener('pointercancel', () => { drag = null; }); canvas.addEventListener('pointerleave', () => { if (!drag) setHover(null); });
 
   // ---------- velikost, zanka ----------
@@ -368,7 +382,7 @@ export async function createRealEngine(canvas, scene, opts = {}) {
 
   return {
     S, kind: 'real',
-    setPeers, setState(st) { S.state = st; }, setFlash(on) { S.flash = !!on; if (on) S.uv = false; }, setUv(on) { S.uv = !!on; if (on) S.flash = false; }, setGain(v) { S.gain = v; }, setLightMul(v) { S.lm = v; },
+    setPeers, setNpcs, setFps(on) { S.fps = !!on; if (on) S.auto = null; }, setSpeed(v) { S.speedMul = v; }, setState(st) { S.state = st; }, setFlash(on) { S.flash = !!on; if (on) S.uv = false; }, setUv(on) { S.uv = !!on; if (on) S.flash = false; }, setGain(v) { S.gain = v; }, setLightMul(v) { S.lm = v; },
     setGhost(gh) { if (!gh) { if (ghostG) ghostG.visible = false; return; } if (!ghostG) { ghostG = buildGhost3D(T); sc.add(ghostG); } ghostG.visible = true; ghostG.position.set(gh.x, 0, gh.z); ghostG.rotation.y = Math.atan2(S.pos.x - gh.x, S.pos.z - gh.z); for (const m of ghostG.userData.mats || []) m.opacity = gh.alpha; },
     look(yaw, pitch) { S.yaw = yaw; S.pitch = pitch || 0; }, pad(f, s, r) { S.pad.f = f; S.pad.s = s; S.pad.r = r; }, hoverObj: () => S.hover,
     distanceTo(objId) { let best = 1e9; for (const m of objMeshes.get(objId) || []) { if (hidden(m.userData.b)) continue; const [a, c] = bounds(m); const px = clamp(S.pos.x, a[0], c[0]), py = clamp(S.pos.y, a[1], c[1]), pz = clamp(S.pos.z, a[2], c[2]); best = Math.min(best, Math.hypot(px - S.pos.x, py - S.pos.y, pz - S.pos.z)); } return best; },

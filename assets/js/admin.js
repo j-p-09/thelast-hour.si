@@ -137,7 +137,7 @@ async function openDetail(id) {
 
 // ---------- kode za dostop ----------
 const CAT_SL = { solo: 'Solo detektiv', group: 'Skupina detektivov' };
-const CASE_SL = { 'PRIMER-001': 'Primer 001', 'PRIMER-002': 'Primer 002', 'PRIMER-003': 'Primer 003' };
+const CASE_SL = { 'PRIMER-001': 'Primer 001', 'PRIMER-002': 'Primer 002', 'PRIMER-003': 'Primer 003', 'PRIMER-004': 'Primer 004 (premium)' };
 const caseOf = (c) => c.caseId || 'PRIMER-001';
 const usedCount = (c) => Object.keys(c.usedBy || {}).length;
 function codeStatus(c) {

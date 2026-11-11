@@ -2,7 +2,7 @@
 import { shell, go, S, loadCase } from './app.js';
 import { h, clear, icon, busyButton, toast, modal, confirmBox, sound, spinner, copyText, download, b64ToBlob, fmtDate, fmtDateTime, fmtDur, STATUS_SL, OUTCOME_SL, MODE_SL, rankFor, plural } from './ui.js';
 import { call, watch, getOnce, startPresence, stopPresence, changePassword } from './backend.js';
-import { CASE2_META, CASE3_META } from './room3d-data.js';
+import { CASE2_META, CASE3_META, CASE4_META } from './room3d-data.js';
 
 const BADGES = [
   ['PRVA PREISKAVA', 'Zaključena prva preiskava (uspešna ali ne).', 'shield'],
@@ -38,8 +38,8 @@ function historyList(rows) {
 }
 
 
-const CASE1 = 'PRIMER-001', CASE2 = 'PRIMER-002', CASE3 = 'PRIMER-003';
-const ROOM = { [CASE2]: { no: '002', meta: CASE2_META }, [CASE3]: { no: '003', meta: CASE3_META } };
+const CASE1 = 'PRIMER-001', CASE2 = 'PRIMER-002', CASE3 = 'PRIMER-003', CASE4 = 'PRIMER-004';
+const ROOM = { [CASE2]: { no: '002', meta: CASE2_META }, [CASE3]: { no: '003', meta: CASE3_META }, [CASE4]: { no: '004', meta: CASE4_META } };
 const isRoom = (cid) => !!ROOM[cid];
 const noOf = (cid) => (ROOM[cid] ? ROOM[cid].no : '001');
 const caseRows = (rows, caseId) => Object.values(rows || {}).filter((r) => (r.caseId || CASE1) === caseId);
@@ -105,16 +105,16 @@ async function dashboard() {
     return h('div', { class: 'card case' + (canPlay ? ' card--glow' : ' case--locked') },
       h('div', { class: 'row' }, h('div', { class: 'kicker' }, `Primer ${no}`), h('span', { class: 'spacer' }), h('span', { class: `pill pill--${kind}` }, label)),
       h('h2', null, meta.title.replace(/^PRIMER \d+: /, '')), h('p', { class: 'muted' }, meta.subtitle),
-      h('p', { class: 'case__kind' }, caseId === CASE3 ? 'HORROR 3D pobeg: tri sobe, vrata, sefi in zvoki, ki jih ne boste pozabili. Zelo težko. Priporočeno s slušalkami.' : caseId === CASE2 ? 'Virtualna 3D soba: premikate se po prostoru in odkrivate predmete. Malo branja, veliko iskanja.' : 'Zaupni spisi: dokumenti, zaslišanja, uganke in tabla s povezavami.'),
+      h('p', { class: 'case__kind' }, caseId === CASE4 ? 'PREMIUM akcija (120 minut): policijska postaja, strelišče, vožnja z lučmi in sireno, vdor v stavbo, nasprotniki, aretacija. Prva oseba. Najbolje na računalniku.' : caseId === CASE3 ? 'HORROR 3D pobeg: tri sobe, vrata, sefi in zvoki, ki jih ne boste pozabili. Zelo težko. Priporočeno s slušalkami.' : caseId === CASE2 ? 'Virtualna 3D soba: premikate se po prostoru in odkrivate predmete. Malo branja, veliko iskanja.' : 'Zaupni spisi: dokumenti, zaslišanja, uganke in tabla s povezavami.'),
       note ? h('p', { class: 'hint' }, note) : null,
       h('div', { class: 'row', style: 'margin-top:10px' }, soloB, teamB));
   }
 
   function drawCases() {
-    const done1 = caseRows(rows, CASE1), done2 = caseRows(rows, CASE2), done3 = caseRows(rows, CASE3);
-    const solved1 = done1.some((r) => r.outcome === 'success'), solved2 = done2.some((r) => r.outcome === 'success'), solved3 = done3.some((r) => r.outcome === 'success');
+    const done1 = caseRows(rows, CASE1), done2 = caseRows(rows, CASE2), done3 = caseRows(rows, CASE3), done4 = caseRows(rows, CASE4);
+    const solved1 = done1.some((r) => r.outcome === 'success'), solved2 = done2.some((r) => r.outcome === 'success'), solved3 = done3.some((r) => r.outcome === 'success'), solved4 = done4.some((r) => r.outcome === 'success');
     const concl1 = done1.some((r) => r.outcome !== 'aborted');
-    const acc1 = unlockedCase(CASE1, rows), acc2 = unlockedCase(CASE2, rows), acc3 = unlockedCase(CASE3, rows);
+    const acc1 = unlockedCase(CASE1, rows), acc2 = unlockedCase(CASE2, rows), acc3 = unlockedCase(CASE3, rows), acc4 = unlockedCase(CASE4, rows);
     const s1 = solved1 ? { label: 'Rešen', kind: 'ok', note: 'Primer je odklenjen za vedno. Lahko ga ponovite.', canPlay: true }
       : concl1 ? { label: 'Zaključen, nerešen', kind: 'warn', note: 'Primer je odklenjen za vedno. Kode ne potrebujete več.', canPlay: true }
         : acc1 ? { label: 'Odklenjen', kind: 'ok', note: 'Koda ni več potrebna.', canPlay: true }
@@ -125,7 +125,10 @@ async function dashboard() {
     const s3 = !concl1 ? { label: 'Zaklenjen', kind: 'bad', note: 'Odklene se po zaključenem Primeru 001 in z veljavno kodo za Primer 003. Lahko se pridružite ekipi igralca, ki je Primer 001 že zaključil.', canPlay: false }
       : acc3 ? { label: solved3 ? 'Rešen' : 'Odklenjen', kind: 'ok', note: solved3 ? 'Primer je odklenjen za vedno. Lahko ga ponovite.' : 'Koda ni več potrebna. Vsebuje strašljive zvoke in utripajočo svetlobo.', canPlay: true }
         : { label: 'Čaka na kodo', kind: 'warn', note: 'Vnesite kodo za Primer 003 zgoraj.', canPlay: false };
-    clear(casesBox).append(caseCard('001', CASE1, c.meta, s1), caseCard('002', CASE2, CASE2_META, s2), caseCard('003', CASE3, CASE3_META, s3));
+    const s4 = !concl1 ? { label: 'Zaklenjen', kind: 'bad', note: 'Odklene se po zaključenem Primeru 001 in z veljavno kodo za Primer 004. Lahko se pridružite ekipi igralca, ki je Primer 001 že zaključil.', canPlay: false }
+      : acc4 ? { label: solved4 ? 'Rešen' : 'Odklenjen', kind: 'ok', note: solved4 ? 'Primer je odklenjen za vedno. Lahko ga ponovite.' : 'Koda ni več potrebna. Igra vsebuje streljanje (prilagodljivo).', canPlay: true }
+        : { label: 'Čaka na kodo', kind: 'warn', note: 'Vnesite kodo za Primer 004 zgoraj.', canPlay: false };
+    clear(casesBox).append(caseCard('001', CASE1, c.meta, s1), caseCard('002', CASE2, CASE2_META, s2), caseCard('003', CASE3, CASE3_META, s3), caseCard('004', CASE4, CASE4_META, s4));
   }
 
   body.append(
@@ -262,9 +265,9 @@ async function result(id) {
           !okk && res.reason ? h('p', { class: 'muted' }, res.reason) : null),
         h('div', { class: 'card' },
           h('div', { class: 'grid c4' }, cl(fmtDur(res.durationSec), 'Trajanje'), cl(`${res.evidenceCount}/${res.evidenceTotal}`, 'Odkrite sledi'), cl(`${res.puzzlesSolved}/${res.puzzlesTotal}`, 'Odklenjene ključavnice'), cl(res.hintsUsed, 'Namigi'),
-            cl(res.superHints || 0, 'Super namigi'), cl(res.wrongAccusations, 'Napačne obtožbe'), cl(okk ? res.score : '–', 'Končna ocena (točke)'), cl(MODE_SL[res.mode] || res.mode, 'Način'), cl(OUTCOME_SL[res.outcome], 'Stanje')),
+            cl(res.superHints || 0, 'Super namigi'), cl(res.deaths || 0, 'Padli v akciji'), cl(res.wrongAccusations, 'Napačne obtožbe'), cl(okk ? res.score : '–', 'Končna ocena (točke)'), cl(MODE_SL[res.mode] || res.mode, 'Način'), cl(OUTCOME_SL[res.outcome], 'Stanje')),
           h('p', { style: 'margin-top:16px' }, h('b', null, 'Detektivi: '), names2.join(', ')),
-          okk ? h('p', null, h('b', null, res.caseId === CASE3 ? 'Odgovoren: ' : 'Storilka: '), res.culprit) : null,
+          okk ? h('p', null, h('b', null, res.caseId === CASE3 || res.caseId === CASE4 ? 'Odgovoren: ' : 'Storilka: '), res.culprit) : null,
           okk ? h('div', { style: 'margin-top:12px' }, h('b', null, 'Dosežene značke: '), myB.length ? myB.map((b) => h('span', { class: 'pill pill--ok', style: 'margin:0 6px 6px 0' }, b)) : h('span', { class: 'muted' }, 'brez novih značk')) : null),
         h('div', { class: 'card', style: 'margin-top:16px' }, h('h2', null, 'Uradna rešitev'),
           h('p', null, o.summary), h('p', null, h('b', null, 'Motiv: '), o.motive), h('p', null, h('b', null, 'Način: '), o.method),

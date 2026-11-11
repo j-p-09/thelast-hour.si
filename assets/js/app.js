@@ -62,7 +62,7 @@ const ROUTES = [
   { re: /^\/nadzorna-plosca$/, auth: 'approved', fn: () => playerScreens.dashboard() },
   { re: /^\/profil$/, auth: 'approved', fn: () => playerScreens.profile() },
   { re: /^\/lobby\/([-\w]+)$/, auth: 'approved', fn: (m) => playerScreens.lobby(m[1]) },
-  { re: /^\/preiskava\/([-\w]+)$/, auth: 'approved', fn: async (m) => { let core = null; try { core = await getOnce(`investigations/${m[1]}/core`); } catch (_) { /* privzeto: primer 001 */ } return core && (core.caseId === 'PRIMER-002' || core.caseId === 'PRIMER-003') ? room3dScreen(m[1], core.caseId) : roomScreen(m[1]); } },
+  { re: /^\/preiskava\/([-\w]+)$/, auth: 'approved', fn: async (m) => { let core = null; try { core = await getOnce(`investigations/${m[1]}/core`); } catch (_) { /* privzeto: primer 001 */ } return core && (core.caseId === 'PRIMER-002' || core.caseId === 'PRIMER-003' || core.caseId === 'PRIMER-004') ? room3dScreen(m[1], core.caseId) : roomScreen(m[1]); } },
   { re: /^\/rezultat\/([-\w]+)$/, auth: 'approved', fn: (m) => playerScreens.result(m[1]) },
 ];
 

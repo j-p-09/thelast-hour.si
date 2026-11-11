@@ -69,3 +69,37 @@ export const ACCUSE_FORM3 = [
   { id: 'grave', label: 'Kje leži Marta', options: [['G1', 'Pod oltarjem v kapeli'], ['G2', 'V vrtu za sanatorijem'], ['G3', 'V kurilnici v kleti'], ['G4', 'V reki za zdraviliščem']] },
   { id: 'contradiction', label: 'Odločilno protislovje (neobvezno)', optional: true, options: [['C1', 'Uradno potrdilo pravi pljučnica; karton in dnevnik naprave kažeta elektrošok 110 V ob 3:17.'], ['C2', 'Berta trdi, da je bila tisto noč doma; zvezek priča, da je bila v sanatoriju.'], ['C3', 'Kranjc trdi, da je bil na dopustu; pismo iz spovednice kaže, da je vedel.'], ['C4', 'Mirko trdi, da vrta ni zapustil; lopata ima blato izpod kapele.']] },
 ];
+
+// ---------- PRIMER 004 ----------
+export const CASE4_META = {
+  id: 'PRIMER-004', no: '004', title: 'PRIMER 004: ČRNI TOVOR', subtitle: 'Policijska akcija: vdor v skladišče Zorman Logistika.', premium: true,
+  durationMin: 120, hintPenalty: 40, wrongPenalty: 100, maxAccusations: 3, accuseOpenFound: 14, accuseOpenSec: 900, totalClues: 20, superHints: 3, superPenalty: 40, locks: 8,
+  briefing: [
+    'Zorman Logistika: skladišče na robu mesta. Obveščevalci poročajo o tihotapljenju orožja, a nihče ne ve, kdo ga organizira. Nocoj so vsi na delu, stavba je polna oboroženih varnostnikov.',
+    'Najprej se pripravite na postaji: oborožite se, vadite na strelišču, določite težavnost in vloge. Detektiv vodi akcijo, specialca ga krijeta.',
+    'Nato se odpeljete do stavbe. Ko vdrete, se začne odštevanje 120 minut. Obvladajte nasprotnike, odklenite uganke in pridite do glavnega osumljenca.',
+    'Osumljenec se preda samo, če vsaj eden od vas meri vanj s pištolo. Sicer zbeži. Ko ga vklenete, ga odpeljete v celico in oddate zapisnik.',
+    'Pazite: poškodujete se lahko vsi, in tudi padete. Ekipa ima omejeno število življenj.',
+  ],
+  controls: [
+    ['Premik', 'W A S D (Shift = hitreje)'], ['Pogled', 'miška (klik na sliko zaklene kazalec, Esc ga sprosti)'], ['Ogenj', 'levi klik ali Presledek'], ['Merjenje', 'desni klik ali Z'],
+    ['Polnjenje', 'R'], ['Uporaba, lisice', 'E'], ['Svetilka / nočni vid', 'F / N'], ['Značka / klic', 'B / V'],
+  ],
+  rules: [
+    'Odštevanje (120 minut) se začne ob vdoru v stavbo, ne prej.', 'Prostor lahko deli največ trije policisti. Uganke in odkritja so skupni, nasprotniki pa se na vsaki napravi izračunajo posebej.',
+    'Namig stane 40 točk, super namig 40 točk, napačna obtožba 100 točk.', 'Vsaka smrt porabi eno življenje ekipe. Ko jih zmanjka, je akcija neuspešna.',
+  ],
+};
+export const SUSPECTS4 = [
+  { id: 'S1', name: 'Viktor Zorman', age: 58, job: 'Lastnik podjetja', statement: '»Podjetje vodim pošteno. V skladišču nisem bil že mesece.«' },
+  { id: 'S2', name: 'Nina Kralj', age: 41, job: 'Računovodkinja', statement: '»Podpisujem račune, ki mi jih prinesejo. Blaga nisem nikoli videla.«' },
+  { id: 'S3', name: 'Rado Bizjak', age: 46, job: 'Vodja varovanja', statement: '»Tisti teden sem bil na dopustu. S pošiljkami nimam nič.«' },
+  { id: 'S4', name: 'Tadej Hribar', age: 35, job: 'Voznik', statement: '»Samo vozim, kamor mi rečejo. Za tovor ne vem ničesar.«' },
+];
+export const ACCUSE_FORM4 = [
+  { id: 'culprit', label: 'Organizator tihotapljenja', options: [['S1', 'Viktor Zorman, lastnik'], ['S2', 'Nina Kralj, računovodkinja'], ['S3', 'Rado Bizjak, vodja varovanja'], ['S4', 'Tadej Hribar, voznik']] },
+  { id: 'method', label: 'Način tihotapljenja', options: [['M1', 'Orožje v zabojnikih z dvojnim dnom in ponarejenih tovornih listih'], ['M2', 'Po pošti'], ['M3', 'Z dronom'], ['M4', 'V avtomobilih zaposlenih']] },
+  { id: 'cover', label: 'Kako je prikril sled', options: [['B1', 'Z izklopom kamer ob 03:47 in izbrisom posnetkov'], ['B2', 'S podkupovanjem policije'], ['B3', 'S požigom skladišča'], ['B4', 'Ni skrival']] },
+  { id: 'hideout', label: 'Kje se je skrival', options: [['H1', 'V varnostni sobi za zadnjimi vrati'], ['H2', 'V kleti'], ['H3', 'V pisarni lastnika'], ['H4', 'Na strehi']] },
+  { id: 'contradiction', label: 'Odločilno protislovje (neobvezno)', optional: true, options: [['C1', 'Bizjak je bil po razporedu na dopustu, a ga dnevnik recepcije in strežnik izpričata ob 03:12 in 03:47.'], ['C2', 'Zorman trdi, da ni vedel, a je v sefu pogodba z »Z.«.'], ['C3', 'Nina trdi, da blaga ni videla, a je podpisala vse račune.'], ['C4', 'Tadej trdi, da je samo voznik, a pozna vse poti.']] },
+];

@@ -6,17 +6,22 @@ import { createEngine } from './room3d-engine.js';
 import { createRealEngine } from './room3d-real.js';
 import { buildScene as buildScene2, OBJECT_LABELS as LABELS2 } from './room3d-scene.js';
 import { buildScene3, OBJECT_LABELS3 } from './room3d-scene3.js';
-import { CASE2_META, SUSPECTS, ACCUSE_FORM, CASE3_META, SUSPECTS3, ACCUSE_FORM3 } from './room3d-data.js';
+import { buildStation, buildRoad, buildWarehouse, OBJECT_LABELS4 } from './room3d-scene4.js';
+import { CASE2_META, SUSPECTS, ACCUSE_FORM, CASE3_META, SUSPECTS3, ACCUSE_FORM3, CASE4_META, SUSPECTS4, ACCUSE_FORM4 } from './room3d-data.js';
+import { createFps, makeSfx, AV_SWAT, AV_DET, CHECKPOINTS } from './fps.js';
+import { createDrive } from './drive.js';
 import { createHorror } from './horror.js';
 import { DEFAULT_AVATAR, PALETTES, STYLES, ACCS, BUILDS, SEXES, BOTTOMS, cleanAv, drawAvatar2D } from './room3d-avatar.js';
 
 const FINISHED = ['success', 'failed', 'expired', 'aborted'];
 
 export async function room3dScreen(id, caseId) {
-  const C3 = caseId === 'PRIMER-003';
-  const M = C3 ? CASE3_META : CASE2_META;
-  const SUS = C3 ? SUSPECTS3 : SUSPECTS, FORM = C3 ? ACCUSE_FORM3 : ACCUSE_FORM, LABELS = C3 ? OBJECT_LABELS3 : LABELS2, buildScene = C3 ? buildScene3 : buildScene2;
-  const R = { id, core: null, progress: {}, content: {}, chat: {}, events: {}, presence: {}, loaded: new Set(), tab: 'sledi', notebook: false, flash: false, uv: false, seen: null, warned: new Set(), drafts: {}, introDone: false, finished: false };
+  const C3 = caseId === 'PRIMER-003', C4 = caseId === 'PRIMER-004';
+  const M = C4 ? CASE4_META : C3 ? CASE3_META : CASE2_META;
+  const SUS = C4 ? SUSPECTS4 : C3 ? SUSPECTS3 : SUSPECTS, FORM = C4 ? ACCUSE_FORM4 : C3 ? ACCUSE_FORM3 : ACCUSE_FORM, LABELS = C4 ? OBJECT_LABELS4 : C3 ? OBJECT_LABELS3 : LABELS2;
+  let lastScene = null;
+  const buildScene = () => { let sc; if (C4) { const ph = R.phase || 'station'; sc = ph === 'drive' ? buildRoad() : ph === 'building' ? buildWarehouse() : buildStation({ cell: ph === 'cell' }); if (ph === 'cell') sc.spawn = { x: -8, z: 2, yaw: -Math.PI / 2 }; } else sc = (C3 ? buildScene3 : buildScene2)(); lastScene = sc; return sc; };
+  const R = { id, core: null, progress: {}, content: {}, chat: {}, events: {}, presence: {}, loaded: new Set(), tab: 'sledi', notebook: false, flash: false, uv: false, seen: null, warned: new Set(), drafts: {}, introDone: false, finished: false, cell: (() => { try { return sessionStorage.getItem(`tlh.cell.${id}`) === '1'; } catch (_) { return false; } })() };
   const host = h('div', { class: 'r3' }, spinner('Odpiram sobo …'));
   shell(host, { bare: true });
 
@@ -80,16 +85,18 @@ export async function room3dScreen(id, caseId) {
   let mounting = false, hoverTimer = null;
   function startEngine() {
     if (eng || mounting) return;
+    if (C4) R.phase = computePhase();
     mount(quality, false).then(() => {
+      startLayers();
       hoverTimer = setInterval(() => { const o = eng && eng.hoverObj(); if (o) { tip.textContent = LABELS[o] || o; tip.hidden = false; } else tip.hidden = true; }, 120);
     });
   }
   // Zamenjava prikazovalnika (lahki / realistični). Platno z enim tipom konteksta ne more postati drugega, zato vsakič novo.
-  async function mount(kind, userChose) {
+  async function mount(kind, userChose, fresh) {
     mounting = true;
     const stage = host.querySelector('.r3__stage');
-    const prev = eng ? { x: eng.S.pos.x, z: eng.S.pos.z, yaw: eng.S.yaw, pitch: eng.S.pitch } : null;
-    const handlers = { onInteract: (obj) => interact(obj), onFlash: () => toggleFlash(), onUv: () => toggleUv() };
+    const prev = eng && !fresh ? { x: eng.S.pos.x, z: eng.S.pos.z, yaw: eng.S.yaw, pitch: eng.S.pitch } : null;
+    const handlers = { onInteract: (obj) => interact(obj), onFlash: () => toggleFlash(), onUv: () => toggleUv(), onUse: () => { if (fps) fps.use(); } };
     const build = () => { const sc = buildScene(); if (prev) sc.spawn = { x: prev.x, z: prev.z, yaw: prev.yaw }; return sc; };
     const place = () => { const fresh = makeCanvas(); stage.replaceChild(fresh, canvas); canvas = fresh; return fresh; };
     let next = null, used = kind;
@@ -109,6 +116,82 @@ export async function room3dScreen(id, caseId) {
   }
   function setQuality(k) { if (mounting || k === quality) return; mount(k, true); }
   function pushState() { if (eng) eng.setState({ items: items(), solved: solved(), revealed: R.progress.revealed || {}, found: found() }); }
+  // ---------- Primer 004: postaja, vožnja, vdor, celica ----------
+  let fps = null, drive = null; const sfx4 = C4 ? makeSfx() : null; let setupEl = null, fadeEl = null;
+  const setupOf = () => R.progress.setup || {};
+  const roleOf = (uid) => (setupOf().roles || {})[uid] || (R.core && R.core.hostUid === uid ? 'det' : 'swat');
+  const myRole = () => (members().length <= 1 ? 'det' : roleOf(S.user.uid));
+  const isHost = () => !!(R.core && R.core.hostUid === S.user.uid);
+  function computePhase() { if (!C4) return null; if (R.cell) return 'cell'; if (R.progress.breach) return 'building'; if (setupOf().go) return 'drive'; return 'station'; }
+  const checkpoint = () => { const s = solved(); let i = 0; for (const l of ['L_D1', 'L_D2', 'L_D3', 'L_D4']) { if (s[l]) i++; else break; } return CHECKPOINTS[i]; };
+  function stopLayers() { if (fps) { fps.destroy(); fps = null; } if (drive) { drive.destroy(); drive = null; } }
+  function startLayers() {
+    if (!C4 || !eng) return; const stage = host.querySelector('.r3__stage'); const ph = R.phase; const solo = members().length <= 1; const diff = setupOf().difficulty || 2;
+    stopLayers();
+    if (ph === 'drive') {
+      const veh = myRole() === 'swat' || R.vehicle !== 'civil' ? 'swat' : 'civil';
+      drive = createDrive({ stage, getEng: () => eng, sfx: sfx4, toast, vehicle: veh, total: 1100, onArrive: () => { R.arrived = true; drawSetup(); toast(isHost() ? 'Prispeli ste. Pritisnite UDOR.' : 'Prispeli ste. Počakajte na vodjo.', 'ok', 5000); } });
+      drive.start();
+    } else {
+      fps = createFps({ stage, getEng: () => eng, getBoxes: () => (lastScene ? lastScene.boxes : []), getState: () => eng.S.state, role: myRole(), difficulty: diff, solo, sfx: sfx4, toast,
+        onUse: (obj) => { if (obj) interactC4(obj); }, onDeath: async () => { try { return await call('roomCasualty', { id }); } catch (_) { return null; } },
+        onCuffed: () => { R.cell = true; try { sessionStorage.setItem(`tlh.cell.${id}`, '1'); } catch (_) { /* nič */ } fade('Prevoz na postajo …', 2600); setTimeout(() => after(), 2600); }, checkpoint, mode: ph === 'station' ? 'range' : ph === 'cell' ? 'cell' : 'combat', baseGain: GAINS[gainI][1] });
+      fps.start(ph === 'station' ? 'range' : ph === 'cell' ? 'cell' : 'combat');
+      if (ph === 'building') fps.say('Vdor! Obvladajte nasprotnike in odklepajte vrata. Osumljenec je za zadnjimi vrati.', 5000);
+      if (ph === 'cell') fps.say('Osumljenec je v celici. Odprite celico (E) in izpolnite zapisnik.', 5000);
+    }
+    drawSetup();
+  }
+  function fade(text, ms) { if (!fadeEl) { fadeEl = h('div', { class: 'r4__fade' }); host.querySelector('.r3__stage').append(fadeEl); } fadeEl.textContent = text; fadeEl.classList.add('on'); setTimeout(() => fadeEl && fadeEl.classList.remove('on'), ms); }
+  async function switchPhase(ph) {
+    if (R.switching || ph === R.phase) return; R.switching = true; stopLayers(); R.phase = ph; R.arrived = false;
+    if (ph === 'building') fade('VDOR!', 1800); else if (ph === 'drive') fade('Odhod proti stavbi …', 1500);
+    try { await mount(quality, false, true); } catch (e) { console.error(e); }
+    startLayers(); R.switching = false;
+  }
+  function interactC4(obj) {
+    if (!obj.startsWith('st_')) return interact(obj);
+    if (obj === 'st_locker') toast(myRole() === 'swat' ? 'Oprema specialca: pištola, značka na jopiču, neprebojni jopič, čelada, lisice, svetilka, nočni vid, 9 šaržerjev po 20 nabojev.' : 'Oprema detektiva: pištola, značka, neprebojni jopič, lisice, svetilka, nočni vid, 3 šaržerji po 20 nabojev.', 'info', 8000);
+    else if (obj === 'st_board') showView({ title: M.title, lines: M.briefing, clues: [] });
+    else if (obj === 'st_range') toast('Streljajte v tarče (levi klik ali Presledek, R = polnjenje, desni klik = merjenje).', 'info', 5000);
+    else if (obj === 'st_vehicle') toast(isHost() ? 'Nastavite težavnost in vloge zgoraj, nato pritisnite ODPELJI.' : 'Vodja ekipe bo določil odhod.', 'info', 4000);
+    else if (obj === 'st_badge') toast('Vaša značka. V akciji jo pokažete s tipko B.', 'info', 3500);
+  }
+  function drawSetup() {
+    if (!C4) return; const stage = host.querySelector('.r3__stage'); if (!stage) return;
+    if (!setupEl) { setupEl = h('div', { class: 'r4__bar' }); stage.append(setupEl); }
+    const ph = R.phase; clear(setupEl); const su = setupOf(); const diff = su.difficulty || 2; const hostNow = isHost();
+    const save = async (patch) => { try { await call('roomSetup', { id, difficulty: patch.difficulty || diff, roles: patch.roles || su.roles || {}, go: !!patch.go }); } catch (e) { toast(e.message, 'err'); } };
+    if (ph === 'station') {
+      const DN = ['', 'Lahko (malo streljanja)', 'Srednje', 'Težko (veliko streljanja)'];
+      const sel = h('select', { disabled: !hostNow || !!su.go, onchange: (e) => save({ difficulty: +e.target.value }) }, [1, 2, 3].map((n) => h('option', { value: n, selected: n === diff }, DN[n])));
+      setupEl.append(h('span', { class: 'pill' }, 'Težavnost'), sel);
+      members().forEach(([uid, m]) => { const r = roleOf(uid); setupEl.append(h('button', { class: 'btn small' + (r === 'det' ? ' primary' : ''), disabled: !hostNow || members().length < 2, title: 'Vodja izbere, kdo je detektiv', onclick: () => { const roles = {}; members().forEach(([u]) => { roles[u] = u === uid ? 'det' : 'swat'; }); save({ roles }); } }, `${m.username}: ${r === 'det' ? 'detektiv' : 'specialec'}`)); });
+      if (myRole() === 'det') setupEl.append(h('button', { class: 'btn small', onclick: (e) => { R.vehicle = R.vehicle === 'civil' ? 'swat' : 'civil'; e.currentTarget.textContent = R.vehicle === 'civil' ? 'Vozilo: civilno' : 'Vozilo: z enoto'; } }, R.vehicle === 'civil' ? 'Vozilo: civilno' : 'Vozilo: z enoto'));
+      if (hostNow) setupEl.append(h('button', { class: 'btn primary small', onclick: () => save({ go: true, difficulty: diff, roles: su.roles }) }, 'ODPELJI'));
+      else setupEl.append(h('span', { class: 'muted' }, 'Vodja določi odhod. Vadite na strelišču.'));
+    } else if (ph === 'drive') {
+      if (R.arrived) { if (hostNow) setupEl.append(h('button', { class: 'btn primary', onclick: async () => { try { await call('roomBreach', { id }); } catch (e) { toast(e.message, 'err'); } } }, 'UDOR V STAVBO')); else setupEl.append(h('span', { class: 'pill' }, 'Čakate na vodjo …')); }
+    } else if (ph === 'building') {
+      const t = h('span', { class: 'pill' }, ''); const upd = () => { t.textContent = `Nasprotniki: ${fps ? fps.alive() : 0}`; }; upd(); clearInterval(R.alivePoll); R.alivePoll = setInterval(upd, 1000); setupEl.append(t);
+    } else if (ph === 'cell') {
+      setupEl.append(h('button', { class: 'btn small', onclick: () => takePhoto() }, 'Fotografija'));
+    }
+  }
+  function takePhoto() {
+    const c = document.querySelector('.r3__canvas'); if (!c) return null; const w = c.width, hh = c.height; const out = document.createElement('canvas'); out.width = w; out.height = hh; const g = out.getContext('2d');
+    try { g.drawImage(c, 0, 0); } catch (_) { return null; }
+    g.fillStyle = 'rgba(0,0,0,.55)'; g.fillRect(0, hh - 54, w, 54); g.fillStyle = '#ffd38a'; g.font = 'bold 22px sans-serif'; g.fillText('THE LAST HOUR · PRIMER 004 · ARETACIJA', 18, hh - 22); g.fillStyle = '#fff'; g.font = '14px sans-serif'; g.textAlign = 'right'; g.fillText(new Date().toLocaleString('sl-SI'), w - 18, hh - 22);
+    return out.toDataURL('image/jpeg', 0.9);
+  }
+  function showPhoto() {
+    if (fps) fps.lock(true); if (document.pointerLockElement && document.exitPointerLock) document.exitPointerLock();
+    const url = takePhoto(); R.dialogOpen = true;
+    const nodes = [h('div', { class: 'kicker' }, 'Aretacija uspešna'), h('h2', null, 'Osumljenec je v celici.')];
+    if (url) nodes.push(h('img', { src: url, alt: 'Fotografija aretacije', style: 'max-width:100%;border-radius:8px;margin:8px 0' }), h('a', { class: 'btn', href: url, download: 'primer-004-aretacija.jpg' }, 'Prenesi fotografijo'));
+    nodes.push(h('button', { class: 'btn primary', style: 'margin-left:8px', onclick: () => go(`#/rezultat/${id}`) }, 'Nadaljuj na rezultat'));
+    clear(dialogHost).append(h('div', { class: 'r3__scrim' }, h('div', { class: 'r3__dlg r3__dlg--intro', role: 'dialog', 'aria-modal': 'true' }, ...nodes)));
+  }
   // ---------- horor (Primer 003): zvok, utripanje, prikazen; baterija svetilke ----------
   let horror = null, horrorOn = false; R.bat = 100; R.batUsed = new Set();
   const batLabel = () => (C3 ? `Svetilka (F) ${Math.round(R.bat)} %` : 'Svetilka (F)');
@@ -139,7 +222,9 @@ export async function room3dScreen(id, caseId) {
     for (const [uid, p] of Object.entries(rawPos || {})) {
       if (uid === S.user.uid || !p || typeof p.x !== 'number') continue;
       if (now - (p.ts || 0) > 25000) continue; // neaktivni ne ostanejo v sobi
-      list.push({ uid, name: p.name || '?', x: p.x, z: p.z, yaw: p.yaw || 0, av: cleanAv(p.av) });
+      if (C4) { if (R.phase === 'drive' || p.ph !== R.phase) continue; }
+      let av = cleanAv(p.av); if (C4) { const ro = ((R.progress.setup || {}).roles || {})[uid]; av = cleanAv({ ...av, ...(ro === 'swat' ? AV_SWAT : AV_DET) }); }
+      list.push({ uid, name: p.name || '?', x: p.x, z: p.z, yaw: p.yaw || 0, av });
     }
     eng.setPeers(list);
   }
@@ -150,7 +235,7 @@ export async function room3dScreen(id, caseId) {
     // pošiljamo ob gibanju; ob mirovanju občasno »sem tu«, da soigralci vidijo, da sem v sobi
     if (!moved && now - sent.at < 8000) return;
     const mv = moved; sent = { x: p.x, z: p.z, yaw, at: now, mv };
-    try { await call('roomMove', { id, x: +p.x.toFixed(2), z: +p.z.toFixed(2), yaw: +yaw.toFixed(2), mv }); } catch (_) { /* nepomembno */ }
+    try { await call('roomMove', { id, x: +p.x.toFixed(2), z: +p.z.toFixed(2), yaw: +yaw.toFixed(2), mv, ph: C4 ? R.phase : undefined }); } catch (_) { /* nepomembno */ }
   }, 1000);
   const peerTimer = setInterval(updatePeers, 2000);
 
@@ -199,7 +284,7 @@ export async function room3dScreen(id, caseId) {
   }
 
   function showView(v) {
-    R.dialogOpen = true;
+    R.dialogOpen = true; if (document.pointerLockElement && document.exitPointerLock) document.exitPointerLock();
     const close = () => { R.dialogOpen = false; clear(dialogHost); canvas.focus(); };
     const err = h('div', { class: 'err', hidden: true, role: 'alert' });
     const body = h('div', { class: 'r3__dlgbody' });
@@ -350,6 +435,7 @@ export async function room3dScreen(id, caseId) {
   }
   function checkFinished() {
     if (!R.core || R.finished) return;
+    if (C4 && R.core.status === 'success' && !R.photoShown) { R.photoShown = true; R.finished = true; showPhoto(); return; }
     if (FINISHED.includes(R.core.status)) { R.finished = true; toast(R.core.status === 'success' ? 'Pravilno! Vrata se odpirajo.' : 'Preiskava je zaključena.', R.core.status === 'success' ? 'ok' : 'err'); setTimeout(() => go(`#/rezultat/${id}`), 1200); }
     else if (R.core.status === 'lobby') go(`#/lobby/${id}`);
   }
@@ -369,6 +455,7 @@ export async function room3dScreen(id, caseId) {
     if (R.loaded.size >= 3 && R.loaded.has('core') && R.loaded.has('progress') && R.loaded.has('content')) {
       if (!ready) { ready = true; startEngine(); tick(); introOverlay(); }
       pushState(); drawTop(); sync();
+      if (C4 && ready && eng && !mounting) { const ph = computePhase(); if (ph !== R.phase) switchPhase(ph); else if (R.phase === 'station' || R.phase === 'drive') drawSetup(); }
       const a = document.activeElement;
       if (R.notebook && !(a && nbHost.contains(a) && /INPUT|SELECT|TEXTAREA/.test(a.tagName))) drawNb();
     }
@@ -385,5 +472,5 @@ export async function room3dScreen(id, caseId) {
     watch(`investigations/${id}/pos`, (v) => { rawPos = v || {}; updatePeers(); }),
   ];
   const pres = startPresence(id, S.user.uid);
-  return () => { sound.setTension(0); subs.forEach((u) => u()); clearInterval(timerHandle); clearInterval(hoverTimer); clearInterval(moveTimer); clearInterval(peerTimer); if (batTimer) clearInterval(batTimer); if (horror) horror.stop(); if (eng) eng.destroy(); stopPresence(id, S.user.uid, pres); };
+  return () => { sound.setTension(0); subs.forEach((u) => u()); clearInterval(timerHandle); clearInterval(hoverTimer); clearInterval(moveTimer); clearInterval(peerTimer); clearInterval(R.alivePoll); if (C4) { stopLayers(); if (sfx4) sfx4.stop(); } if (batTimer) clearInterval(batTimer); if (horror) horror.stop(); if (eng) eng.destroy(); stopPresence(id, S.user.uid, pres); };
 }

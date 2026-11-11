@@ -31,7 +31,7 @@ export function createEngine(canvas, scene, opts = {}) {
   const g = canvas.getContext('2d', { alpha: false });
   const S = {
     pos: { x: scene.spawn.x, y: 1.62, z: scene.spawn.z }, yaw: scene.spawn.yaw || 0, pitch: 0,
-    flash: false, uv: false, gain: 1.0, hover: null, state: {}, auto: null, t: 0,
+    fps: false, speedMul: 1, npcs: [], flash: false, uv: false, gain: 1.0, hover: null, state: {}, auto: null, t: 0,
     keys: new Set(), peers: new Map(), pad: { f: 0, s: 0, r: 0 }, W: 800, H: 500, dpr: 1, running: true, last: performance.now(),
   };
   const fov = (opts.fov || 72) * Math.PI / 180;
@@ -255,6 +255,16 @@ export function createEngine(canvas, scene, opts = {}) {
       const L = dynLight([q.x, 1.0, q.z], [0, 0, 1], staticLight([q.x, 1.0, q.z], [0, 0, 1])); const light = clamp((L[0] + L[1] + L[2]) / 3 * 1.05 + 0.18, 0.4, 1.3);
       list.push({ d: dx * dx + dz * dz - 0.15, run() { drawAvatar2D(g, q.av, f[0], f[1], hpx, { t: S.t + q.phase, walk: q.walk, name: fc[2] < 14 ? q.name : null, light }); } });
     }
+    for (const n of S.npcs) {
+      const dx = n.x - S.pos.x, dz = n.z - S.pos.z; const fc = toCam([n.x, 0, n.z]); if (fc[2] < 0.35) continue;
+      const hc = toCam([n.x, 1.78, n.z]); const f = proj(fc), hp = proj(hc); const hpx = f[1] - hp[1]; if (hpx < 3 || f[0] < -200 || f[0] > S.W + 200) continue;
+      const L = dynLight([n.x, 1.0, n.z], [0, 0, 1], staticLight([n.x, 1.0, n.z], [0, 0, 1])); const light = clamp((L[0] + L[1] + L[2]) / 3 * 1.05 + 0.22, 0.4, 1.3);
+      list.push({ d: dx * dx + dz * dz - 0.15, run() {
+        drawAvatar2D(g, n.av, f[0], f[1], hpx, { t: S.t + (n.phase || 0), walk: n.walk ? 1 : 0, name: null, light });
+        if (n.flash > 0) { const r = Math.max(3, hpx * 0.07); g.fillStyle = 'rgba(255,220,120,.95)'; g.beginPath(); g.arc(f[0] + hpx * 0.06, f[1] - hpx * 0.52, r * (1 + n.flash), 0, 7); g.fill(); }
+        if (n.hurt > 0) { g.fillStyle = `rgba(255,30,30,${Math.min(0.6, n.hurt)})`; g.fillRect(f[0] - hpx * 0.14, f[1] - hpx * 0.95, hpx * 0.28, hpx * 0.8); }
+      } });
+    }
     if (S.ghost) { const q = S.ghost, dx = q.x - S.pos.x, dz = q.z - S.pos.z; const fc = toCam([q.x, 0, q.z]); if (fc[2] > 0.35) { const hc = toCam([q.x, 1.8, q.z]); const f = proj(fc), hp = proj(hc); const hpx = f[1] - hp[1]; if (hpx > 4) list.push({ d: dx * dx + dz * dz - 0.1, run() { drawGhost2D(g, f[0], f[1], hpx, { alpha: q.alpha, t: S.t }); } }); } }
     list.sort((p, q) => q.d - p.d);
     for (const it of list) it.run();
@@ -351,13 +361,14 @@ export function createEngine(canvas, scene, opts = {}) {
 
   function update(dt) {
     S.t += dt;
+    if (S.fps) { const hp = pick(S.W / 2, S.H / 2); S.hover = hp ? hp.obj : null; S.hoverDist = hp ? hp.dist : 0; }
     const turn = ((S.keys.has('ArrowLeft') || S.keys.has('KeyQ') ? -1 : 0) + (S.keys.has('ArrowRight') || S.keys.has('KeyE') ? 1 : 0) + S.pad.r) * 1.9 * dt;
     S.yaw += turn;
     const f = (S.keys.has('KeyW') || S.keys.has('ArrowUp') ? 1 : 0) - (S.keys.has('KeyS') || S.keys.has('ArrowDown') ? 1 : 0) + S.pad.f;
     const s = (S.keys.has('KeyD') ? 1 : 0) - (S.keys.has('KeyA') ? 1 : 0) + S.pad.s;
     let mx = 0, mz = 0;
     if (f || s) {
-      const fl = clamp(f, -1, 1), sl = clamp(s, -1, 1); const sp = (S.keys.has('ShiftLeft') ? 4.2 : 2.5) * dt;
+      const fl = clamp(f, -1, 1), sl = clamp(s, -1, 1); const sp = (S.keys.has('ShiftLeft') ? 4.2 : 2.5) * (S.speedMul || 1) * dt;
       const fx = Math.sin(S.yaw), fz = -Math.cos(S.yaw), rx = Math.cos(S.yaw), rz = Math.sin(S.yaw);
       mx = (fx * fl + rx * sl) * sp; mz = (fz * fl + rz * sl) * sp;
       S.auto = null;
@@ -380,8 +391,9 @@ export function createEngine(canvas, scene, opts = {}) {
   // ---------- vhodi ----------
   const onKey = (e) => {
     if (e.target && /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
+    if (S.fps && (e.code === 'KeyQ' || e.code === 'KeyE')) { if (e.type === 'keydown' && e.code === 'KeyE' && opts.onUse) opts.onUse(); return; }
     if (['KeyW', 'KeyA', 'KeyS', 'KeyD', 'KeyQ', 'KeyE', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ShiftLeft'].includes(e.code)) { if (e.type === 'keydown') S.keys.add(e.code); else S.keys.delete(e.code); if (e.code.startsWith('Arrow')) e.preventDefault(); }
-    if (e.type === 'keydown') { if (e.code === 'KeyF' && opts.onFlash) opts.onFlash(); if (e.code === 'KeyU' && opts.onUv) opts.onUv(); if (e.code === 'Space' || e.code === 'Enter') { if (S.hover && opts.onInteract) { e.preventDefault(); opts.onInteract(S.hover); } } }
+    if (e.type === 'keydown') { if (e.code === 'KeyF' && opts.onFlash) opts.onFlash(); if (e.code === 'KeyU' && opts.onUv) opts.onUv(); if ((e.code === 'Space' || e.code === 'Enter') && !S.fps) { if (S.hover && opts.onInteract) { e.preventDefault(); opts.onInteract(S.hover); } } }
   };
   window.addEventListener('keydown', onKey); window.addEventListener('keyup', onKey);
   const blur = () => S.keys.clear(); window.addEventListener('blur', blur);
@@ -393,14 +405,14 @@ export function createEngine(canvas, scene, opts = {}) {
     const [x, y] = rel(e);
     if (drag && drag.id === e.pointerId) {
       const dx = x - drag.x, dy = y - drag.y; drag.moved += Math.abs(dx) + Math.abs(dy); drag.x = x; drag.y = y;
-      if (drag.moved > 6) { S.yaw += dx * 0.0042 * (72 / 72); S.pitch = clamp(S.pitch - dy * 0.0035, -1, 1); S.auto = null; }
+      if (drag.moved > 6 && !S.fps) { S.yaw += dx * 0.0042 * (72 / 72); S.pitch = clamp(S.pitch - dy * 0.0035, -1, 1); S.auto = null; }
     }
     if (!drag || e.pointerType === 'mouse') { const p = pick(x, y); S.hover = p ? p.obj : null; S.hoverDist = p ? p.dist : 0; canvas.style.cursor = S.hover ? 'pointer' : (drag ? 'grabbing' : 'grab'); }
   });
   const end = (e) => {
     if (!drag || drag.id !== e.pointerId) return;
     const wasTap = drag.moved <= 6; const [x, y] = rel(e); drag = null;
-    if (wasTap) { const p = pick(x, y); S.hover = p ? p.obj : null; if (p && opts.onInteract) opts.onInteract(p.obj); }
+    if (wasTap && !S.fps) { const p = pick(x, y); S.hover = p ? p.obj : null; if (p && opts.onInteract) opts.onInteract(p.obj); }
   };
   canvas.addEventListener('pointerup', end); canvas.addEventListener('pointercancel', () => { drag = null; });
   canvas.addEventListener('pointerleave', () => { if (!drag) S.hover = null; });
@@ -432,6 +444,9 @@ export function createEngine(canvas, scene, opts = {}) {
       for (const k of [...S.peers.keys()]) if (!seen.has(k)) S.peers.delete(k);
     },
     setGain(v) { S.gain = v; },
+    setFps(on) { S.fps = !!on; if (on) S.auto = null; },
+    setNpcs(list) { S.npcs = list || []; },
+    setSpeed(v) { S.speedMul = v; },
     setLightMul(v) { S.lm = v; },
     setGhost(gh) { S.ghost = gh || null; },
     setFlash(on) { S.flash = !!on; if (on) S.uv = false; },
